@@ -336,7 +336,6 @@ export class Gallery {
         }
 
         try {
-            // Zip oluştur
             const zip = new JSZip();
             photos.forEach(photo => {
                 const base64Data = photo.data.split(',')[1];
@@ -344,46 +343,20 @@ export class Gallery {
             });
 
             const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const file = new File([zipBlob], 'fotograflar.zip', {
+                type: 'application/zip',
+                lastModified: Date.now()
+            });
 
-            // Firefox Mobile için özel kontrol
-            const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
-            
-            if (isFirefox) {
-                // Firefox için basit paylaşım
-                await navigator.share({
-                    title: 'Fotoğraflar',
-                    text: 'Paylaşılan fotoğraflar'
-                });
-            } else {
-                // Diğer tarayıcılar için dosya paylaşımı
-                const file = new File([zipBlob], 'fotograflar.zip', {
-                    type: 'application/zip',
-                    lastModified: Date.now()
-                });
-
-                await navigator.share({
-                    files: [file],
-                    title: 'Fotoğraflar',
-                    text: 'Paylaşılan fotoğraflar'
-                });
-            }
+            await navigator.share({
+                files: [file],
+                title: 'Fotoğraflar'
+            });
 
             this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
             if (error.name !== 'AbortError') {
-                // Firefox için alternatif indirme yöntemi
-                if (error.name === 'NotAllowedError' && navigator.userAgent.toLowerCase().includes('firefox')) {
-                    try {
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(zipBlob);
-                        link.download = 'fotograflar.zip';
-                        link.click();
-                        this.toast.show('Fotoğraflar indirme başladı.', 'success');
-                        return;
-                    } catch (downloadError) {
-                        console.error('İndirme hatası:', downloadError);
-                    }
-                }
+                console.error('Paylaşım hatası:', error);
                 this.toast.show('Paylaşım sırasında bir hata oluştu.', 'error');
             }
         }
