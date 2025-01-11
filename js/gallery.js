@@ -348,17 +348,43 @@ export class Gallery {
                 lastModified: Date.now()
             });
 
-            await navigator.share({
-                files: [file],
-                title: 'Fotoğraflar'
-            });
+            // Paylaşım özelliğini kontrol et
+            const shareData = { files: [file], title: 'Fotoğraflar' };
+            
+            if (!navigator.share || !navigator.canShare || !navigator.canShare(shareData)) {
+                await this.dialog.alert(
+                    'Bu cihazda paylaşım özelliği desteklenmiyor veya dosya paylaşımı için izinler yetersiz.',
+                    'Paylaşım Hatası'
+                );
+                return;
+            }
 
+            await navigator.share(shareData);
             this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error('Paylaşım hatası:', error);
-                this.toast.show('Paylaşım sırasında bir hata oluştu.', 'error');
+            if (error.name === 'AbortError') {
+                return; // Kullanıcı paylaşımı iptal etti
             }
+
+            let errorMessage = 'Bilinmeyen bir hata oluştu.';
+            let errorTitle = 'Paylaşım Hatası';
+            let errorDetails = `Hata Türü: ${error.name}\nHata Detayı: ${error.message}`;
+            
+            // Hata türüne göre özel mesajlar
+            if (error.name === 'NotAllowedError') {
+                errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
+            } else if (error.name === 'DataError') {
+                errorMessage = 'Paylaşılacak dosya çok büyük veya desteklenmiyor.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'Paylaşım servisi bulunamadı.';
+            } else if (error.name === 'TypeError') {
+                errorMessage = 'Dosya paylaşımı bu cihazda desteklenmiyor.';
+            }
+
+            await this.dialog.alert(
+                `${errorMessage}\n\nTeknik Detay:\n${errorDetails}`, 
+                errorTitle
+            );
         }
     }
 
