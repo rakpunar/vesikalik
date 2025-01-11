@@ -329,66 +329,62 @@ export class Gallery {
     }
 
     async shareAll() {
-        let debugInfo = '=== PAYLAŞIM DEBUG BİLGİLERİ ===\n\n';
-        
+        const photos = this.storage.getPhotos();
+        if (photos.length === 0) {
+            this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
+            return;
+        }
+
         try {
-            // 1. Fotoğraf kontrolü
-            const photos = this.storage.getPhotos();
-            debugInfo += `1. Fotoğraf sayısı: ${photos.length}\n\n`;
-            
-            // 2. API Kontrolleri
-            debugInfo += '2. Web Share API Kontrolleri:\n';
-            debugInfo += `- navigator.share: ${typeof navigator.share}\n`;
-            debugInfo += `- navigator.canShare: ${typeof navigator.canShare}\n\n`;
-            
-            // 3. Zip oluşturma
-            debugInfo += '3. Zip oluşturuluyor...\n';
+            // Zip oluştur
             const zip = new JSZip();
             photos.forEach(photo => {
                 const base64Data = photo.data.split(',')[1];
                 zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
             });
-            
-            // 4. Blob oluşturma
+
             const zipBlob = await zip.generateAsync({ type: 'blob' });
-            debugInfo += `4. Blob boyutu: ${zipBlob.size} bytes\n\n`;
+
+            // Firefox Mobile için özel kontrol
+            const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
             
-            // 5. File oluşturma
-            const file = new File([zipBlob], 'fotograflar.zip', {
-                type: 'application/zip',
-                lastModified: Date.now()
-            });
-            debugInfo += '5. File nesnesi oluşturuldu\n\n';
-            
-            // 6. Share Data hazırlama
-            const shareData = {
-                files: [file],
-                title: 'Fotoğraflar',
-                text: 'Paylaşılan fotoğraflar'
-            };
-            debugInfo += '6. Share Data hazırlandı\n\n';
-            
-            // 7. Paylaşım kontrolü
-            debugInfo += '7. Paylaşım kontrolleri:\n';
-            debugInfo += `- canShare sonucu: ${navigator.canShare ? navigator.canShare(shareData) : 'API yok'}\n\n`;
-            
-            // 8. Paylaşım denemesi
-            debugInfo += '8. Paylaşım başlatılıyor...\n';
-            await navigator.share(shareData);
-            debugInfo += 'Paylaşım başarılı!\n';
-            
+            if (isFirefox) {
+                // Firefox için basit paylaşım
+                await navigator.share({
+                    title: 'Fotoğraflar',
+                    text: 'Paylaşılan fotoğraflar'
+                });
+            } else {
+                // Diğer tarayıcılar için dosya paylaşımı
+                const file = new File([zipBlob], 'fotograflar.zip', {
+                    type: 'application/zip',
+                    lastModified: Date.now()
+                });
+
+                await navigator.share({
+                    files: [file],
+                    title: 'Fotoğraflar',
+                    text: 'Paylaşılan fotoğraflar'
+                });
+            }
+
             this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
-            debugInfo += '\n=== HATA OLUŞTU ===\n';
-            debugInfo += `Hata adı: ${error.name}\n`;
-            debugInfo += `Hata mesajı: ${error.message}\n`;
-            debugInfo += `Tarayıcı: ${navigator.userAgent}\n`;
-            
-            // Hata mesajını dialog ile göster
-            await this.dialog.alert(debugInfo, 'Debug Bilgileri');
-            
             if (error.name !== 'AbortError') {
-                this.toast.show('Paylaşım sırasında bir hata oluştu: ' + error.message, 'error');
+                // Firefox için alternatif indirme yöntemi
+                if (error.name === 'NotAllowedError' && navigator.userAgent.toLowerCase().includes('firefox')) {
+                    try {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(zipBlob);
+                        link.download = 'fotograflar.zip';
+                        link.click();
+                        this.toast.show('Fotoğraflar indirme başladı.', 'success');
+                        return;
+                    } catch (downloadError) {
+                        console.error('İndirme hatası:', downloadError);
+                    }
+                }
+                this.toast.show('Paylaşım sırasında bir hata oluştu.', 'error');
             }
         }
     }
