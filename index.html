@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>35x45mm Fotoğraf Çekme</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+      };
+    </script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body
+    class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen"
+  >
+    <div
+      id="app"
+      class="container mx-auto px-4 py-4 h-screen flex flex-col max-w-5xl"
+    >
+      <!-- Sekme Başlıkları -->
+      <div class="flex space-x-2 mb-4">
+        <button
+          id="camera-tab"
+          class="flex-1 py-2 px-4 rounded-t-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+        >
+          Kamera
+        </button>
+        <button
+          id="gallery-tab"
+          class="flex-1 py-2 px-4 rounded-t-lg bg-gray-500 text-white hover:bg-gray-600 transition-colors"
+        >
+          Galeri (<span id="photo-count">0</span>)
+        </button>
+      </div>
+
+      <!-- Ana İçerik Alanı - Yüksekliği otomatik ayarlanacak -->
+      <div class="flex-1 overflow-hidden">
+        <!-- Kamera Bölümü -->
+        <div id="camera-section" class="h-full flex flex-col">
+          <div
+            id="camera-container"
+            class="flex-1 relative bg-black rounded-lg overflow-hidden"
+          >
+            <video
+              id="camera-preview"
+              autoplay
+              playsinline
+              class="absolute inset-0 w-full h-full object-cover"
+            ></video>
+
+            <div id="guide-overlay" class="absolute inset-0">
+              <div id="crop-guide" class="border-2 border-white"></div>
+            </div>
+
+            <button
+              id="capture-btn"
+              class="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center"
+            >
+              <div class="w-14 h-14 bg-red-500 rounded-full"></div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Galeri Bölümü - Başlangıçta gizli -->
+        <div id="gallery-section" class="hidden h-full flex flex-col">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold">
+              Galeri (<span id="photo-count-title">0</span>)
+            </h2>
+            <div class="space-x-2">
+              <button
+                id="delete-all-btn"
+                class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Tümünü Sil
+              </button>
+              <button
+                id="download-btn"
+                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                İndir
+              </button>
+              <button
+                id="share-btn"
+                class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Paylaş
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="gallery-grid"
+            class="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 overflow-y-auto pb-4"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Düzenleme Modalı -->
+      <div
+        id="edit-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+      >
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg w-11/12 max-w-2xl">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold">Fotoğraf Düzenle</h3>
+            <button id="close-modal" class="text-2xl">&times;</button>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Kırpma Alanı -->
+            <div class="relative w-full" style="height: 400px">
+              <img
+                id="edit-image"
+                class="max-h-full w-full object-contain rounded"
+              />
+            </div>
+
+            <!-- Kontroller -->
+            <div class="flex gap-4 mb-4">
+              <button
+                id="rotate-left"
+                class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                ↺ Sola Döndür
+              </button>
+              <button
+                id="rotate-right"
+                class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                ↻ Sağa Döndür
+              </button>
+              <button
+                id="crop-apply"
+                class="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Kırp
+              </button>
+              <button
+                id="crop-reset"
+                class="px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                Sıfırla
+              </button>
+            </div>
+
+            <!-- Parlaklık Ayarı -->
+            <div class="space-y-2">
+              <label>Parlaklık</label>
+              <input
+                type="range"
+                id="brightness"
+                min="0"
+                max="200"
+                value="100"
+              />
+            </div>
+
+            <!-- Alt Butonlar -->
+            <div class="flex justify-end space-x-2">
+              <button
+                id="rename-photo"
+                class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                Yeniden Adlandır
+              </button>
+              <button
+                id="delete-photo"
+                class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Sil
+              </button>
+              <button
+                id="save-edits"
+                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
