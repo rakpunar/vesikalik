@@ -330,12 +330,6 @@ export class Gallery {
             return;
         }
 
-        // Tarayıcı paylaşım desteğini kontrol et
-        if (!navigator.share) {
-            this.toast.show('Paylaşım özelliği bu tarayıcıda desteklenmiyor.', 'error');
-            return;
-        }
-
         try {
             // Tüm fotoğrafları zip dosyasına ekle
             const zip = new JSZip();
@@ -346,23 +340,23 @@ export class Gallery {
 
             const zipBlob = await zip.generateAsync({ type: 'blob' });
             const file = new File([zipBlob], 'fotograflar.zip', {
-                type: 'application/zip',
-                lastModified: new Date().getTime()
+                type: 'application/zip'
             });
 
-            // Paylaşım desteğini kontrol et
-            if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
-                throw new Error('Dosya paylaşımı desteklenmiyor');
-            }
-
-            // Paylaşım işlemini başlat
-            await navigator.share({
+            // Paylaşım verisi
+            const shareData = {
                 files: [file],
                 title: 'Fotoğraflar',
                 text: 'Paylaşılan fotoğraflar'
-            });
+            };
 
-            this.toast.show('Paylaşım başarılı', 'success');
+            // Paylaşım desteğini kontrol et
+            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+                this.toast.show('Paylaşım başarılı', 'success');
+            } else {
+                throw new Error('Dosya paylaşımı desteklenmiyor');
+            }
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('Paylaşım hatası:', error);
