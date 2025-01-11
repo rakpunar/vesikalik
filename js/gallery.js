@@ -329,72 +329,67 @@ export class Gallery {
     }
 
     async shareAll() {
-        const photos = this.storage.getPhotos();
-        if (photos.length === 0) {
-            this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
-            return;
-        }
-
+        let debugInfo = '=== PAYLAŞIM DEBUG BİLGİLERİ ===\n\n';
+        
         try {
-            console.log('Paylaşım başlatılıyor...'); // Debug için log
-
-            // Tüm fotoğrafları zip dosyasına ekle
+            // 1. Fotoğraf kontrolü
+            const photos = this.storage.getPhotos();
+            debugInfo += `1. Fotoğraf sayısı: ${photos.length}\n\n`;
+            
+            // 2. API Kontrolleri
+            debugInfo += '2. Web Share API Kontrolleri:\n';
+            debugInfo += `- navigator.share: ${typeof navigator.share}\n`;
+            debugInfo += `- navigator.canShare: ${typeof navigator.canShare}\n\n`;
+            
+            // 3. Zip oluşturma
+            debugInfo += '3. Zip oluşturuluyor...\n';
             const zip = new JSZip();
             photos.forEach(photo => {
                 const base64Data = photo.data.split(',')[1];
                 zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
             });
-
-            console.log('Zip dosyası oluşturuluyor...'); // Debug için log
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
             
-            // File nesnesini oluştur
+            // 4. Blob oluşturma
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            debugInfo += `4. Blob boyutu: ${zipBlob.size} bytes\n\n`;
+            
+            // 5. File oluşturma
             const file = new File([zipBlob], 'fotograflar.zip', {
                 type: 'application/zip',
                 lastModified: Date.now()
             });
-
-            // Paylaşım verisi
+            debugInfo += '5. File nesnesi oluşturuldu\n\n';
+            
+            // 6. Share Data hazırlama
             const shareData = {
                 files: [file],
                 title: 'Fotoğraflar',
                 text: 'Paylaşılan fotoğraflar'
             };
-
-            console.log('Paylaşım desteği kontrol ediliyor...'); // Debug için log
-            console.log('navigator.share:', !!navigator.share);
-            console.log('navigator.canShare:', !!navigator.canShare);
-            console.log('canShare result:', navigator.canShare ? navigator.canShare(shareData) : false);
-
-            // Paylaşım desteğini kontrol et
-            if (!navigator.share || !navigator.canShare) {
-                throw new Error('Paylaşım API\'si desteklenmiyor');
-            }
-
-            if (!navigator.canShare(shareData)) {
-                throw new Error('Bu dosya türü paylaşılamıyor');
-            }
-
-            // Paylaşım işlemini başlat
+            debugInfo += '6. Share Data hazırlandı\n\n';
+            
+            // 7. Paylaşım kontrolü
+            debugInfo += '7. Paylaşım kontrolleri:\n';
+            debugInfo += `- canShare sonucu: ${navigator.canShare ? navigator.canShare(shareData) : 'API yok'}\n\n`;
+            
+            // 8. Paylaşım denemesi
+            debugInfo += '8. Paylaşım başlatılıyor...\n';
             await navigator.share(shareData);
+            debugInfo += 'Paylaşım başarılı!\n';
+            
             this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
-            console.error('Paylaşım hatası:', error); // Detaylı hata logu
+            debugInfo += '\n=== HATA OLUŞTU ===\n';
+            debugInfo += `Hata adı: ${error.name}\n`;
+            debugInfo += `Hata mesajı: ${error.message}\n`;
+            debugInfo += `Tarayıcı: ${navigator.userAgent}\n`;
             
-            if (error.name === 'AbortError') {
-                // Kullanıcı paylaşımı iptal etti, sessizce çık
-                return;
+            // Hata mesajını dialog ile göster
+            await this.dialog.alert(debugInfo, 'Debug Bilgileri');
+            
+            if (error.name !== 'AbortError') {
+                this.toast.show('Paylaşım sırasında bir hata oluştu: ' + error.message, 'error');
             }
-
-            // Hata mesajını belirle
-            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
-            if (error.message === 'Paylaşım API\'si desteklenmiyor') {
-                errorMessage = 'Bu cihazda paylaşım özelliği desteklenmiyor.';
-            } else if (error.message === 'Bu dosya türü paylaşılamıyor') {
-                errorMessage = 'Bu dosya türü paylaşılamıyor.';
-            }
-
-            this.toast.show(errorMessage, 'error');
         }
     }
 
