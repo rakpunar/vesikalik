@@ -12,6 +12,11 @@ export class Gallery {
         this.toast = new Toast();
         this.setupModalListeners();
         this.cropper = null;
+
+        // Galeri butonlarına event listener'ları ekle
+        document.getElementById('share-btn').addEventListener('click', () => this.shareAll());
+        document.getElementById('download-btn').addEventListener('click', () => this.downloadAll());
+        document.getElementById('delete-all-btn').addEventListener('click', () => this.deleteAll());
     }
 
     render() {
@@ -331,6 +336,8 @@ export class Gallery {
         }
 
         try {
+            console.log('Paylaşım başlatılıyor...'); // Debug için log
+
             // Tüm fotoğrafları zip dosyasına ekle
             const zip = new JSZip();
             photos.forEach(photo => {
@@ -338,9 +345,13 @@ export class Gallery {
                 zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
             });
 
+            console.log('Zip dosyası oluşturuluyor...'); // Debug için log
             const zipBlob = await zip.generateAsync({ type: 'blob' });
+            
+            // File nesnesini oluştur
             const file = new File([zipBlob], 'fotograflar.zip', {
-                type: 'application/zip'
+                type: 'application/zip',
+                lastModified: Date.now()
             });
 
             // Paylaşım verisi
@@ -350,22 +361,40 @@ export class Gallery {
                 text: 'Paylaşılan fotoğraflar'
             };
 
+            console.log('Paylaşım desteği kontrol ediliyor...'); // Debug için log
+            console.log('navigator.share:', !!navigator.share);
+            console.log('navigator.canShare:', !!navigator.canShare);
+            console.log('canShare result:', navigator.canShare ? navigator.canShare(shareData) : false);
+
             // Paylaşım desteğini kontrol et
-            if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-                await navigator.share(shareData);
-                this.toast.show('Paylaşım başarılı', 'success');
-            } else {
-                throw new Error('Dosya paylaşımı desteklenmiyor');
+            if (!navigator.share || !navigator.canShare) {
+                throw new Error('Paylaşım API\'si desteklenmiyor');
             }
+
+            if (!navigator.canShare(shareData)) {
+                throw new Error('Bu dosya türü paylaşılamıyor');
+            }
+
+            // Paylaşım işlemini başlat
+            await navigator.share(shareData);
+            this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error('Paylaşım hatası:', error);
-                if (error.message === 'Dosya paylaşımı desteklenmiyor') {
-                    this.toast.show('Bu cihazda dosya paylaşımı desteklenmiyor.', 'error');
-                } else {
-                    this.toast.show('Paylaşım sırasında bir hata oluştu.', 'error');
-                }
+            console.error('Paylaşım hatası:', error); // Detaylı hata logu
+            
+            if (error.name === 'AbortError') {
+                // Kullanıcı paylaşımı iptal etti, sessizce çık
+                return;
             }
+
+            // Hata mesajını belirle
+            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
+            if (error.message === 'Paylaşım API\'si desteklenmiyor') {
+                errorMessage = 'Bu cihazda paylaşım özelliği desteklenmiyor.';
+            } else if (error.message === 'Bu dosya türü paylaşılamıyor') {
+                errorMessage = 'Bu dosya türü paylaşılamıyor.';
+            }
+
+            this.toast.show(errorMessage, 'error');
         }
     }
 
