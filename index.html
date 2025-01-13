@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>v1.0.26 PWA</title>
+    <title>v1.0.27 PWA</title>
 
     <!-- PWA Meta Etiketleri -->
     <link rel="manifest" href="manifest.json" />
@@ -112,6 +112,28 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Alt butonlar -->
+      <div class="bottom-actions">
+        <button class="btn-debug" onclick="window.app.debug.toggle()">
+          Debug Log
+        </button>
+        <button
+          class="btn-clear"
+          onclick="window.app.gallery.deleteAllPhotos()"
+        >
+          Temizle
+        </button>
+        <button
+          class="btn-export"
+          onclick="window.app.gallery.downloadPhotos()"
+        >
+          Dışa Aktar
+        </button>
+        <button class="btn-share" onclick="window.app.gallery.sharePhotos()">
+          Paylaş
+        </button>
       </div>
     </div>
 
