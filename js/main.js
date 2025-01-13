@@ -13,11 +13,48 @@ class App {
         this.dialog = new Dialog();
         this.toast = new Toast();
         this.activeTab = 'camera';
-        this.debugLogger = new DebugLogger()
-        console.log('App initialized with debug logger')
+        this.debugLogger = new DebugLogger();
+        console.log('App initialized with debug logger');
 
+        // PWA için service worker kontrolü
+        this.registerServiceWorker();
         this.setupEventListeners();
         this.initializeApp();
+    }
+
+    async registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.register('service-worker.js');
+                console.log('Service Worker başarıyla kaydedildi:', registration);
+
+                // Share Target API için event listener
+                navigator.serviceWorker.addEventListener('message', event => {
+                    if (event.data.type === 'share-target') {
+                        this.handleSharedFiles(event.data.files);
+                    }
+                });
+            } catch (error) {
+                console.error('Service Worker kaydı başarısız:', error);
+            }
+        }
+    }
+
+    async handleSharedFiles(files) {
+        try {
+            for (const file of files) {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    await this.storage.addPhoto(reader.result);
+                    this.gallery.render();
+                    this.toast.show('Paylaşılan fotoğraf kaydedildi', 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+        } catch (error) {
+            console.error('Paylaşılan dosya işlenirken hata:', error);
+            this.toast.show('Fotoğraf kaydedilemedi', 'error');
+        }
     }
 
     async initializeApp() {
@@ -33,6 +70,7 @@ class App {
         this.gallery.render();
         this.setupGuideLines();
     }
+
     async deleteAllPhotos() {
         const confirmed = await this.dialog.confirm('Tüm fotoğraflar silinecek. Emin misiniz?', 'Fotoğrafları Sil');
         if (confirmed) {
