@@ -19,8 +19,8 @@ export class Gallery {
         document.getElementById('delete-all-btn').addEventListener('click', () => this.deleteAll());
     }
 
-    render() {
-        const photos = this.storage.getPhotos();
+    async render() {
+        const photos = await this.storage.getPhotos();
         const maxPhotos = this.storage.MAX_PHOTOS;
 
         // Fotoğrafları timestamp'e göre eskiden yeniye sırala
@@ -286,8 +286,8 @@ export class Gallery {
 
         const confirmed = await this.dialog.confirm('Bu fotoğrafı silmek istediğinize emin misiniz?', 'Fotoğraf Sil');
         if (confirmed) {
-            this.storage.deletePhoto(this.currentPhotoId);
-            this.render();
+            await this.storage.deletePhoto(this.currentPhotoId);
+            await this.render();
             this.closeEditModal();
             this.toast.show('Fotoğraf silindi', 'success');
         }
