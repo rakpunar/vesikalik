@@ -13,10 +13,31 @@ export class Gallery {
         this.setupModalListeners();
         this.cropper = null;
 
-        // Galeri butonlarına event listener'ları ekle
-        document.getElementById('share-btn').addEventListener('click', () => this.shareAll());
-        document.getElementById('download-btn').addEventListener('click', () => this.downloadAll());
-        document.getElementById('delete-all-btn').addEventListener('click', () => this.deleteAll());
+        // Event listener'ları tek bir metotta toplayalım
+        this.setupGalleryListeners();
+    }
+
+    // Yeni metod: Galeri butonlarının event listener'larını ayarla
+    setupGalleryListeners() {
+        // Önce mevcut listener'ları temizle
+        const shareBtn = document.getElementById('share-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const deleteAllBtn = document.getElementById('delete-all-btn');
+
+        // Eski listener'ları kaldır (varsa)
+        shareBtn.replaceWith(shareBtn.cloneNode(true));
+        downloadBtn.replaceWith(downloadBtn.cloneNode(true));
+        deleteAllBtn.replaceWith(deleteAllBtn.cloneNode(true));
+
+        // Yeni referansları al
+        const newShareBtn = document.getElementById('share-btn');
+        const newDownloadBtn = document.getElementById('download-btn');
+        const newDeleteAllBtn = document.getElementById('delete-all-btn');
+
+        // Yeni listener'ları ekle
+        newShareBtn.addEventListener('click', () => this.shareAll());
+        newDownloadBtn.addEventListener('click', () => this.downloadAll());
+        newDeleteAllBtn.addEventListener('click', () => this.deleteAll());
     }
 
     async render() {
@@ -350,7 +371,6 @@ export class Gallery {
 
             // Her durumda ZIP oluştur
             const zip = new JSZip();
-
             for (const photo of photosWithBlobs) {
                 console.log(`Adding photo to ZIP: ${photo.name}`);
                 zip.file(`${photo.name}.jpg`, photo.blob);
@@ -368,9 +388,9 @@ export class Gallery {
                 type: zipBlob.type
             });
 
+            // ZIP dosyasını paylaşmayı dene
             const file = new File([zipBlob], 'vesikalik_fotograflar.zip', {
-                type: 'application/zip',
-                lastModified: Date.now()
+                type: 'application/zip'
             });
 
             console.log('File object created:', {
@@ -380,31 +400,30 @@ export class Gallery {
             });
 
             const shareData = {
-                files: [file],
-                title: 'Vesikalık Fotoğraflar'
+                files: [file]
             };
 
-            if (navigator.canShare && !navigator.canShare(shareData)) {
-                console.log('Trying alternative share method');
-                // ZIP paylaşılamıyorsa alternatif MIME type dene
-                const altFile = new File([zipBlob], 'photos.zip', {
-                    type: 'application/octet-stream'
-                });
-
-                if (navigator.canShare({ files: [altFile] })) {
-                    console.log('Sharing with alternative MIME type');
-                    await navigator.share({ files: [altFile] });
-                    this.toast.show('Paylaşım başarılı', 'success');
-                    return;
-                }
-
-                throw new Error('Bu içerik paylaşılamıyor');
+            // Önce normal ZIP paylaşımını dene
+            if (navigator.canShare && navigator.canShare(shareData)) {
+                console.log('Sharing with ZIP MIME type');
+                await navigator.share(shareData);
+                this.toast.show('Paylaşım başarılı', 'success');
+                return;
             }
 
-            console.log('Attempting to share...');
-            await navigator.share(shareData);
-            console.log('Share successful');
-            this.toast.show('Paylaşım başarılı', 'success');
+            // ZIP paylaşılamıyorsa alternatif MIME type dene
+            const altFile = new File([zipBlob], 'vesikalik_fotograflar.zip', {
+                type: 'application/octet-stream'
+            });
+
+            if (navigator.canShare && navigator.canShare({ files: [altFile] })) {
+                console.log('Sharing with alternative MIME type');
+                await navigator.share({ files: [altFile] });
+                this.toast.show('Paylaşım başarılı', 'success');
+                return;
+            }
+
+            throw new Error('Bu içerik paylaşılamıyor');
 
         } catch (error) {
             console.error('Share error details:', {
@@ -413,11 +432,13 @@ export class Gallery {
                 stack: error.stack
             });
 
-            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
             if (error.name === 'AbortError') {
                 console.log('Share was aborted by user');
                 return; // Kullanıcı iptal ettiyse mesaj gösterme
-            } else if (error.name === 'NotAllowedError') {
+            }
+
+            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
+            if (error.name === 'NotAllowedError') {
                 errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
             } else if (error.name === 'NotFoundError') {
                 errorMessage = 'Paylaşım servisi bulunamadı.';
