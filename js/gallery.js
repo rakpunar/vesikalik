@@ -41,25 +41,30 @@ export class Gallery {
     }
 
     async render() {
-        const photos = await this.storage.getPhotos();
-        const maxPhotos = this.storage.MAX_PHOTOS;
+        try {
+            const photos = await this.storage.getPhotos();
+            const maxPhotos = this.storage.MAX_PHOTOS;
 
-        // Fotoğrafları timestamp'e göre eskiden yeniye sırala
-        const sortedPhotos = photos.sort((a, b) => a.timestamp - b.timestamp);
+            // Fotoğrafları timestamp'e göre eskiden yeniye sırala
+            const sortedPhotos = photos.sort((a, b) => a.timestamp - b.timestamp);
 
-        // Galeriyi render et
-        const galleryHTML = sortedPhotos.map(photo => this.createPhotoElement(photo)).join('');
-        this.container.innerHTML = galleryHTML;
+            // Galeriyi render et
+            const galleryHTML = sortedPhotos.map(photo => this.createPhotoElement(photo)).join('');
+            this.container.innerHTML = galleryHTML;
 
-        // Fotoğraf sayısını güncelle
-        const photoCount = photos.length;
-        document.getElementById('photo-count').textContent = `${photoCount}/${maxPhotos}`;
-        document.getElementById('photo-count-title').textContent = `${photoCount}/${maxPhotos}`;
+            // Fotoğraf sayısını güncelle
+            const photoCount = photos.length;
+            document.getElementById('photo-count').textContent = `${photoCount}/${maxPhotos}`;
+            document.getElementById('photo-count-title').textContent = `${photoCount}/${maxPhotos}`;
 
-        // Fotoğraf tıklama olaylarını ekle
-        this.container.querySelectorAll('.photo-item').forEach(item => {
-            item.addEventListener('click', () => this.openEditModal(item.dataset.id));
-        });
+            // Fotoğraf tıklama olaylarını ekle
+            this.container.querySelectorAll('.photo-item').forEach(item => {
+                item.addEventListener('click', () => this.openEditModal(item.dataset.id));
+            });
+        } catch (error) {
+            console.error('Galeri render hatası:', error);
+            this.toast.show('Fotoğraflar yüklenirken bir hata oluştu', 'error');
+        }
     }
 
     createPhotoElement(photo) {
@@ -96,42 +101,48 @@ export class Gallery {
         });
     }
 
-    openEditModal(photoId) {
-        const photos = this.storage.getPhotos();
-        const photo = photos.find(p => p.id === photoId);
-        if (!photo) return;
+    async openEditModal(photoId) {
+        try {
+            const photos = await this.storage.getPhotos();
+            const photo = photos.find(p => p.id === photoId);
+            if (!photo) {
+                throw new Error('Fotoğraf bulunamadı');
+            }
 
-        this.currentPhotoId = photoId;
-        this.originalPhoto = photo;
-        this.tempChanges = {}; // Temiz başlangıç
+            this.currentPhotoId = photoId;
+            this.originalPhoto = photo;
+            this.tempChanges = {}; // Temiz başlangıç
 
-        // Modal'ı görünür yap
-        this.modal.classList.remove('hidden');
+            // Modal'ı görünür yap
+            this.modal.classList.remove('hidden');
 
-        const editImage = document.getElementById('edit-image');
+            const editImage = document.getElementById('edit-image');
 
-        // Önceki cropper varsa temizle
-        if (this.cropper) {
-            this.cropper.destroy();
-            this.cropper = null;
+            // Önceki cropper varsa temizle
+            if (this.cropper) {
+                this.cropper.destroy();
+                this.cropper = null;
+            }
+
+            // Görüntüyü yükle
+            editImage.src = photo.data;
+
+            // Parlaklık değerini ayarla
+            const brightnessSlider = document.getElementById('brightness');
+            const savedBrightness = photo.edits?.brightness || 100;
+            brightnessSlider.value = savedBrightness;
+
+            // Görüntü yüklendiğinde cropper'ı başlat
+            editImage.onload = () => {
+                // Parlaklığı uygula
+                editImage.style.filter = `brightness(${savedBrightness}%)`;
+                this.initializeCropper(editImage);
+                this.setupEditControls();
+            };
+        } catch (error) {
+            console.error('Modal açma hatası:', error);
+            this.toast.show('Fotoğraf düzenleme açılamadı', 'error');
         }
-
-        // Görüntüyü yükle
-        editImage.src = photo.data;
-
-        // Parlaklık değerini ayarla
-        const brightnessSlider = document.getElementById('brightness');
-        const savedBrightness = photo.edits?.brightness || 100;
-        brightnessSlider.value = savedBrightness;
-
-        // Görüntü yüklendiğinde cropper'ı başlat
-        editImage.onload = () => {
-            // Parlaklığı uygula
-            editImage.style.filter = `brightness(${savedBrightness}%)`;
-
-            this.initializeCropper(editImage);
-            this.setupEditControls();
-        };
     }
 
     // Cropper başlatma işlemini ayrı bir metoda aldım
@@ -292,8 +303,8 @@ export class Gallery {
                 }
             };
 
-            this.storage.updatePhoto(this.currentPhotoId, updates);
-            this.render();
+            await this.storage.updatePhoto(this.currentPhotoId, updates);
+            await this.render();
             this.closeEditModal();
             this.toast.show('Değişiklikler kaydedildi', 'success');
         } catch (error) {
@@ -497,33 +508,37 @@ export class Gallery {
     async renameCurrentPhoto() {
         if (!this.currentPhotoId) return;
 
-        const photos = this.storage.getPhotos();
-        const currentPhoto = photos.find(p => p.id === this.currentPhotoId);
-        if (!currentPhoto) return;
-
-        let newName = await this.dialog.prompt(
-            'Yeni isim girin:',
-            currentPhoto.name,
-            'Fotoğrafı Yeniden Adlandır'
-        );
-
-        // İsim değişikliği yapılmak isteniyor ve yeni bir isim girildi
-        while (newName !== null && newName.trim() !== currentPhoto.name && newName.trim() !== '') {
-            // Aynı isimde başka bir fotoğraf var mı kontrol et
-            if (this.storage.isNameExists(newName.trim())) {
-                this.toast.show('Bu isimde bir fotoğraf zaten var!', 'error');
-                newName = await this.dialog.prompt(
-                    'Lütfen başka bir isim girin:',
-                    newName,
-                    'Fotoğrafı Yeniden Adlandır'
-                );
-            } else {
-                // İsim benzersiz, değişikliği yap
-                this.storage.updatePhoto(this.currentPhotoId, { name: newName.trim() });
-                this.render();
-                this.toast.show('Fotoğraf ismi güncellendi', 'success');
-                break;
+        try {
+            const photos = await this.storage.getPhotos();
+            const currentPhoto = photos.find(p => p.id === this.currentPhotoId);
+            if (!currentPhoto) {
+                throw new Error('Fotoğraf bulunamadı');
             }
+
+            let newName = await this.dialog.prompt(
+                'Yeni isim girin:',
+                currentPhoto.name,
+                'Fotoğrafı Yeniden Adlandır'
+            );
+
+            while (newName !== null && newName.trim() !== currentPhoto.name && newName.trim() !== '') {
+                if (await this.storage.isNameExists(newName.trim())) {
+                    this.toast.show('Bu isimde bir fotoğraf zaten var!', 'error');
+                    newName = await this.dialog.prompt(
+                        'Lütfen başka bir isim girin:',
+                        newName,
+                        'Fotoğrafı Yeniden Adlandır'
+                    );
+                } else {
+                    await this.storage.updatePhoto(this.currentPhotoId, { name: newName.trim() });
+                    await this.render();
+                    this.toast.show('Fotoğraf ismi güncellendi', 'success');
+                    break;
+                }
+            }
+        } catch (error) {
+            console.error('Yeniden adlandırma hatası:', error);
+            this.toast.show('İsim değiştirme başarısız oldu', 'error');
         }
     }
 }
