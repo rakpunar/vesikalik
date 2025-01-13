@@ -1,192 +1,229 @@
-export class Dialog {
+// debug.js
+export class DebugLogger {
     constructor() {
-        this.setupDialog();
+        this.container = document.createElement('div');
+        this.container.style.cssText = `
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 9999;
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        `;
+
+        // Kontrol paneli container'ı
+        this.controlPanel = document.createElement('div');
+        this.controlPanel.style.cssText = `
+            position: fixed;
+            bottom: env(safe-area-inset-bottom, 10px);
+            right: env(safe-area-inset-right, 10px);
+            z-index: 10000;
+            display: flex;
+            gap: 8px;
+        `;
+
+        // Debug Log butonu
+        this.toggleButton = this.createButton('Debug Log', '#007bff');
+        this.clearButton = this.createButton('Temizle', '#dc3545');
+        this.exportButton = this.createButton('Dışa Aktar', '#28a745');
+        this.shareButton = this.createButton('Paylaş', '#17a2b8');
+
+        this.controlPanel.appendChild(this.toggleButton);
+        this.controlPanel.appendChild(this.clearButton);
+        this.controlPanel.appendChild(this.exportButton);
+        this.controlPanel.appendChild(this.shareButton);
+
+        document.body.appendChild(this.container);
+        document.body.appendChild(this.controlPanel);
+
+        this.logs = [];
+        this.isVisible = false;
+        this.hide();
+
+        // Event listener'ları ekle
+        this.setupEventListeners();
+
+        // PWA için performans izleme
+        this.setupPerformanceMonitoring();
     }
 
-    setupDialog() {
-        // Ana dialog container
-        this.container = document.createElement('div');
-        this.container.className = 'dialog-overlay hidden';
+    createButton(text, color) {
+        const button = document.createElement('button');
+        button.style.cssText = `
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: ${color};
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            touch-action: manipulation;
+        `;
+        button.textContent = text;
+        return button;
+    }
 
-        // Dialog içeriği
-        this.content = document.createElement('div');
-        this.content.className = 'dialog-content';
+    setupEventListeners() {
+        this.toggleButton.onclick = () => this.toggle();
+        this.clearButton.onclick = () => this.clear();
+        this.exportButton.onclick = () => this.exportLogs();
+        this.shareButton.onclick = () => this.shareLogs();
 
-        this.container.appendChild(this.content);
-        document.body.appendChild(this.container);
+        // PWA için dokunma geri bildirimi
+        if ('vibrate' in navigator) {
+            [this.toggleButton, this.clearButton, this.exportButton, this.shareButton].forEach(button => {
+                button.addEventListener('touchstart', () => {
+                    navigator.vibrate(1);
+                });
+            });
+        }
 
-        // Dışarı tıklamayı engelle
-        this.container.addEventListener('click', (e) => {
-            if (e.target === this.container) {
-                // Sadece confirm ve alert için dışarı tıklama ile kapanma
-                if (!this.isPrompt) {
-                    this.hide();
-                    if (this.rejectCallback) this.rejectCallback();
-                }
+        // PWA için hardware back button
+        window.addEventListener('popstate', () => {
+            if (this.isVisible) {
+                this.hide();
+                history.pushState(null, '');
             }
         });
     }
 
-    createButtons(options) {
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'dialog-buttons';
+    setupPerformanceMonitoring() {
+        // PWA performans metrikleri
+        if ('performance' in window) {
+            // Sayfa yükleme performansı
+            window.addEventListener('load', () => {
+                const timing = performance.getEntriesByType('navigation')[0];
+                this.log('Performance', {
+                    loadTime: timing.loadEventEnd - timing.navigationStart,
+                    domReady: timing.domContentLoadedEventEnd - timing.navigationStart,
+                    firstPaint: performance.getEntriesByName('first-paint')[0]?.startTime,
+                    firstContentfulPaint: performance.getEntriesByName('first-contentful-paint')[0]?.startTime
+                });
+            });
 
-        if (options.confirm || options.prompt) {
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'dialog-button confirm';
-            confirmBtn.textContent = options.confirmText || 'Tamam';
-            confirmBtn.onclick = () => {
-                if (options.prompt) {
-                    const input = this.content.querySelector('input');
-                    this.resolveCallback(input.value);
-                } else {
-                    this.resolveCallback(true);
-                }
-                this.hide();
-            };
-            buttonContainer.appendChild(confirmBtn);
+            // Memory kullanımı
+            if (performance.memory) {
+                setInterval(() => {
+                    this.log('Memory', {
+                        usedJSHeapSize: this.formatBytes(performance.memory.usedJSHeapSize),
+                        totalJSHeapSize: this.formatBytes(performance.memory.totalJSHeapSize)
+                    });
+                }, 30000);
+            }
         }
-
-        if (options.confirm || options.prompt) {
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'dialog-button cancel';
-            cancelBtn.textContent = options.cancelText || 'İptal';
-            cancelBtn.onclick = () => {
-                this.hide();
-                this.rejectCallback();
-            };
-            buttonContainer.appendChild(cancelBtn);
-        } else {
-            const okBtn = document.createElement('button');
-            okBtn.className = 'dialog-button confirm';
-            okBtn.textContent = 'Tamam';
-            okBtn.onclick = () => {
-                this.hide();
-                if (this.resolveCallback) this.resolveCallback();
-            };
-            buttonContainer.appendChild(okBtn);
-        }
-
-        return buttonContainer;
     }
 
-    show(options = {}) {
-        this.content.innerHTML = '';
-        this.isPrompt = options.prompt;
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
 
-        // Icon alanı
-        const icon = document.createElement('div');
-        icon.className = `dialog-icon ${options.type || 'info'}`;
-        icon.innerHTML = this.getIconSvg(options.type);
-        this.content.appendChild(icon);
+    log(type, ...args) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = {
+            timestamp,
+            type,
+            data: args
+        };
 
-        // Başlık
-        if (options.title) {
-            const title = document.createElement('div');
-            title.className = 'dialog-title';
-            title.textContent = options.title;
-            this.content.appendChild(title);
+        this.logs.push(logEntry);
+        if (this.isVisible) {
+            this.render(logEntry);
         }
 
-        // Mesaj
-        const message = document.createElement('div');
-        message.className = 'dialog-message';
-        message.textContent = options.message;
-        this.content.appendChild(message);
+        // PWA için konsol senkronizasyonu
+        console.log(`[${timestamp}] ${type}`, ...args);
+    }
 
-        // Input alanı (prompt için)
-        if (options.prompt) {
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'dialog-input';
-            input.value = options.default || '';
-            input.placeholder = options.placeholder || '';
-            this.content.appendChild(input);
-            // Enter tuşu ile onaylama
-            input.addEventListener('keyup', (e) => {
-                if (e.key === 'Enter') {
-                    this.resolveCallback(input.value);
-                    this.hide();
-                }
-            });
+    render(logEntry) {
+        const logElement = document.createElement('div');
+        logElement.style.marginBottom = '5px';
+        logElement.innerHTML = `
+            <span style="color: #888">[${logEntry.timestamp}]</span>
+            <span style="color: #4CAF50">${logEntry.type}</span>:
+            <span>${JSON.stringify(logEntry.data, null, 2)}</span>
+        `;
+        this.container.appendChild(logElement);
+        this.container.scrollTop = this.container.scrollHeight;
+    }
+
+    async exportLogs() {
+        const blob = new Blob([JSON.stringify(this.logs, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `debug_logs_${new Date().toISOString()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async shareLogs() {
+        try {
+            const blob = new Blob([JSON.stringify(this.logs, null, 2)], { type: 'application/json' });
+            const file = new File([blob], `debug_logs_${new Date().toISOString()}.json`, { type: 'application/json' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Debug Logs',
+                    text: 'Vesikalık uygulaması debug logları'
+                });
+            } else {
+                // Paylaşım desteklenmiyorsa indirme yap
+                this.exportLogs();
+            }
+        } catch (error) {
+            console.error('Log paylaşımı başarısız:', error);
+            this.exportLogs();
         }
+    }
 
-        // Butonlar
-        const buttons = this.createButtons(options);
-        this.content.appendChild(buttons);
-
-        // Dialog'u göster
-        this.container.classList.remove('hidden');
-
-        // Input varsa focus
-        if (options.prompt) {
-            setTimeout(() => {
-                this.content.querySelector('input').focus();
-            }, 100);
+    toggle() {
+        if (this.isVisible) {
+            this.hide();
+        } else {
+            this.show();
         }
+    }
 
-        return new Promise((resolve, reject) => {
-            this.resolveCallback = resolve;
-            this.rejectCallback = reject;
-        });
+    show() {
+        this.container.style.display = 'block';
+        this.isVisible = true;
+        history.pushState(null, '');
+        // Tüm logları render et
+        this.container.innerHTML = '';
+        this.logs.forEach(log => this.render(log));
     }
 
     hide() {
-        this.container.classList.add('hidden');
+        this.container.style.display = 'none';
+        this.isVisible = false;
     }
 
-    alert(message, title = '') {
-        return this.show({
-            type: 'info',
-            message,
-            title
-        });
-    }
+    clear() {
+        this.container.innerHTML = '';
+        this.logs = [];
 
-    confirm(message, title = '') {
-        return this.show({
-            type: 'question',
-            message,
-            title,
-            confirm: true
-        });
-    }
+        // Temizleme başarılı animasyonu
+        const originalText = this.clearButton.textContent;
+        this.clearButton.textContent = '✓ Temizlendi';
+        if ('vibrate' in navigator) navigator.vibrate([50]);
 
-    prompt(message, defaultValue = '', title = '') {
-        return this.show({
-            type: 'input',
-            message,
-            title,
-            prompt: true,
-            default: defaultValue
-        });
-    }
-
-    getIconSvg(type) {
-        switch (type) {
-            case 'error':
-                return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="15" y1="9" x2="9" y2="15"></line>
-                    <line x1="9" y1="9" x2="15" y2="15"></line>
-                </svg>`;
-            case 'success':
-                return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>`;
-            case 'question':
-                return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>`;
-            default:
-                return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="16" x2="12" y2="12"></line>
-                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>`;
-        }
+        setTimeout(() => {
+            this.clearButton.textContent = originalText;
+        }, 2000);
     }
 }
