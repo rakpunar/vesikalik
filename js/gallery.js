@@ -500,6 +500,7 @@ export class Gallery {
     // Tek fotoğraf paylaşımı için yeni metod
     async shareSingle() {
         try {
+            console.log('shareSingle başlatıldı');
             const photos = await this.storage.getPhotos();
             if (photos.length === 0) {
                 this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
@@ -508,30 +509,79 @@ export class Gallery {
 
             // İlk fotoğrafı al
             const photo = photos[0];
+            console.log('Paylaşılacak fotoğraf:', {
+                name: photo.name,
+                size: photo.data.length
+            });
+
+            // Web Share API desteğini kontrol et
+            console.log('Web Share API durumu:', {
+                shareAvailable: !!navigator.share,
+                canShareAvailable: !!navigator.canShare,
+                userAgent: navigator.userAgent
+            });
 
             // Base64'ten Blob'a çevir
             const response = await fetch(photo.data);
             const blob = await response.blob();
+            console.log('Blob oluşturuldu:', {
+                type: blob.type,
+                size: blob.size
+            });
 
             // Paylaşım için dosya oluştur
             const file = new File([blob], `${photo.name}.jpg`, {
                 type: 'image/jpeg'
             });
+            console.log('File oluşturuldu:', {
+                name: file.name,
+                type: file.type,
+                size: file.size
+            });
 
-            // Web Share API ile paylaş
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'Vesikalık Fotoğraf',
-                    text: 'Vesikalık uygulamasından paylaşılan fotoğraf'
-                });
-                this.toast.show('Paylaşım başarılı', 'success');
+            // Paylaşım desteğini kontrol et
+            const canShare = navigator.canShare({ files: [file] });
+            console.log('Paylaşım desteği:', { canShare });
+
+            if (canShare) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Vesikalık Fotoğraf',
+                        text: 'Vesikalık uygulamasından paylaşılan fotoğraf'
+                    });
+                    this.toast.show('Paylaşım başarılı', 'success');
+                } catch (shareError) {
+                    console.error('Share API hatası:', {
+                        name: shareError.name,
+                        message: shareError.message,
+                        code: shareError.code,
+                        stack: shareError.stack
+                    });
+                    throw shareError;
+                }
             } else {
-                throw new Error('Bu fotoğraf paylaşılamıyor');
+                throw new Error('Bu fotoğraf paylaşılamıyor (canShare: false)');
             }
         } catch (error) {
-            console.error('Paylaşım hatası:', error);
-            await this.dialog.alert(error.message, 'Paylaşım Hatası');
+            console.error('Paylaşım hatası detayları:', {
+                name: error.name,
+                message: error.message,
+                code: error.code,
+                stack: error.stack,
+                toString: error.toString()
+            });
+
+            let errorMessage = 'Paylaşım sırasında bir hata oluştu';
+            if (error.name === 'AbortError') {
+                errorMessage = 'Paylaşım iptal edildi';
+            } else if (error.name === 'NotAllowedError') {
+                errorMessage = 'Paylaşım için izin verilmedi';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage = 'Bu tarayıcı paylaşımı desteklemiyor';
+            }
+
+            await this.dialog.alert(errorMessage, 'Paylaşım Hatası');
         }
     }
 }
