@@ -144,16 +144,17 @@ export class Storage {
     // Güncellenmiş getPhotos metodu
     async getPhotos() {
         await this.waitForDB();
-        if (!this.db) {
-            throw new Error('Veritabanı henüz hazır değil');
-        }
 
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.photoStore, 'readonly');
             const store = transaction.objectStore(this.photoStore);
             const request = store.getAll();
 
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = () => {
+                // Fotoğrafları tarihe göre sırala
+                const photos = request.result.sort((a, b) => b.timestamp - a.timestamp);
+                resolve(photos);
+            };
             request.onerror = () => reject(request.error);
         });
     }
