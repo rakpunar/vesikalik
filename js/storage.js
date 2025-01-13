@@ -5,6 +5,7 @@ export class Storage {
         this.dbVersion = 1;
         this.photoStore = 'photos';
         this.MAX_PHOTOS = 25;
+        this.dbReady = false;
         this.initDB();
     }
 
@@ -29,6 +30,7 @@ export class Storage {
 
             request.onsuccess = (event) => {
                 this.db = event.target.result;
+                this.dbReady = true;
                 this.migrateFromLocalStorage();
             };
         } catch (error) {
@@ -53,8 +55,25 @@ export class Storage {
         }
     }
 
+    // Veritabanının hazır olmasını bekleyen yardımcı metod
+    async waitForDB() {
+        if (this.dbReady) return;
+
+        return new Promise((resolve) => {
+            const check = () => {
+                if (this.dbReady) {
+                    resolve();
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
+    }
+
     // Güncellenmiş getPhotos metodu
     async getPhotos() {
+        await this.waitForDB();
         if (!this.db) {
             throw new Error('Veritabanı henüz hazır değil');
         }
