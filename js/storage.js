@@ -6,6 +6,7 @@ export class Storage {
         this.photoStore = 'photos';
         this.MAX_PHOTOS = 25;
         this.dbReady = false;
+        this.zipStore = 'zips';
         this.initDB();
     }
 
@@ -25,6 +26,9 @@ export class Storage {
                     const store = db.createObjectStore(this.photoStore, { keyPath: 'id' });
                     store.createIndex('timestamp', 'timestamp', { unique: false });
                     store.createIndex('name', 'name', { unique: false });
+                }
+                if (!db.objectStoreNames.contains(this.zipStore)) {
+                    db.createObjectStore(this.zipStore, { keyPath: 'id' });
                 }
             };
 
@@ -210,6 +214,54 @@ export class Storage {
             const transaction = this.db.transaction(this.photoStore, 'readwrite');
             const store = transaction.objectStore(this.photoStore);
             const request = store.clear();
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    // ZIP dosyasını kaydet
+    async saveZip(zipBlob) {
+        await this.waitForDB();
+        const id = 'temp_zip_' + Date.now();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.zipStore, 'readwrite');
+            const store = transaction.objectStore(this.zipStore);
+
+            const request = store.put({
+                id: id,
+                data: zipBlob,
+                timestamp: Date.now()
+            });
+
+            request.onsuccess = () => resolve(id);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    // ZIP dosyasını getir
+    async getZip(id) {
+        await this.waitForDB();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.zipStore, 'readonly');
+            const store = transaction.objectStore(this.zipStore);
+            const request = store.get(id);
+
+            request.onsuccess = () => resolve(request.result?.data);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    // ZIP dosyasını sil
+    async deleteZip(id) {
+        await this.waitForDB();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.zipStore, 'readwrite');
+            const store = transaction.objectStore(this.zipStore);
+            const request = store.delete(id);
 
             request.onsuccess = () => resolve();
             request.onerror = () => reject(request.error);
