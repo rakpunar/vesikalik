@@ -46,24 +46,30 @@ export class Gallery {
         try {
             const photos = await this.storage.getPhotos();
             const maxPhotos = this.storage.MAX_PHOTOS;
-
             this.photoCount.textContent = `${photos.length}/${maxPhotos}`;
+
+            // Mevcut event listener'ları temizle
+            const oldItems = this.container.querySelectorAll('.photo-item');
+            oldItems.forEach(item => {
+                item.removeEventListener('click', item._clickHandler);
+            });
 
             // Fragment kullanarak performansı artır
             const fragment = document.createDocumentFragment();
             photos.forEach(photo => {
                 const element = document.createElement('div');
                 element.innerHTML = this.createPhotoElement(photo);
-                fragment.appendChild(element.firstChild);
+                const photoItem = element.firstChild;
+
+                // Event listener'ı sakla
+                photoItem._clickHandler = () => this.showPhotoActions(photo.id);
+                photoItem.addEventListener('click', photoItem._clickHandler);
+
+                fragment.appendChild(photoItem);
             });
 
             this.container.innerHTML = '';
             this.container.appendChild(fragment);
-
-            // Event listener'ları ekle
-            this.container.querySelectorAll('.photo-item').forEach(item => {
-                item.addEventListener('click', () => this.showPhotoActions(item.dataset.id));
-            });
         } catch (error) {
             console.error('Galeri render hatası:', error);
             this.toast.show('Fotoğraflar yüklenirken hata oluştu', 'error');
