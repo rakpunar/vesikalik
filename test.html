@@ -1,313 +1,289 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vesikalık Fotoğraf</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Passport Photo Capture</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
     <style>
-        .guide-overlay {
+        .guidelines {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 35mm;
-            height: 45mm;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            pointer-events: none;
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="max-w-4xl mx-auto p-4">
-        <!-- Camera View -->
-        <div id="cameraContainer" class="mb-4">
-            <input type="text" id="photoName" placeholder="Fotoğraf İsmi" class="w-full mb-4 p-2 border rounded">
-            <div class="relative">
-                <video id="video" class="w-full h-auto" autoplay playsinline></video>
-                <div class="guide-overlay"></div>
-            </div>
-            <button id="captureBtn" class="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 mx-auto block mt-4"></button>
-        </div>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Passport Photo Capture</h1>
+            <p class="text-gray-600 mt-2">35x45mm format</p>
+        </header>
 
-        <!-- Gallery -->
-        <div id="gallery" class="mt-8">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold">Galeri</h2>
-                <div class="space-x-2">
-                    <button id="deleteAllBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Tümünü Sil</button>
-                    <button id="downloadBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">İndir</button>
-                    <button id="shareBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 hidden sm:inline-block">Paylaş</button>
+        <!-- Main Content -->
+        <main class="max-w-2xl mx-auto">
+            <!-- Camera Section -->
+            <div class="relative bg-black rounded-lg overflow-hidden mb-6">
+                <video id="camera" class="w-full h-96 object-cover" autoplay playsinline></video>
+                <div id="guidelines" class="guidelines"></div>
+                
+                <!-- Camera Controls -->
+                <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
+                    <button id="switchCamera" class="bg-white text-gray-800 rounded-full p-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                    <button id="capture" class="bg-red-500 text-white rounded-full w-16 h-16 flex items-center justify-center">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke-width="2"></circle>
+                            <circle cx="12" cy="12" r="6" fill="currentColor"></circle>
+                        </svg>
+                    </button>
                 </div>
             </div>
-            <div id="photoGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+
+            <!-- Photo Gallery -->
+            <div id="gallery" class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
+                <!-- Photos will be inserted here -->
+            </div>
+        </main>
+
+        <!-- Photo Editor Modal -->
+        <div id="editorModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+                <h2 class="text-2xl font-bold mb-4">Edit Photo</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Brightness</label>
+                        <input type="range" min="0" max="200" value="100" class="w-full" id="brightnessSlider">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Sharpness</label>
+                        <input type="range" min="0" max="200" value="100" class="w-full" id="sharpnessSlider">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="photoName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button id="deletePhoto" class="px-4 py-2 bg-red-500 text-white rounded">Delete</button>
+                        <button id="saveEdits" class="px-4 py-2 bg-blue-500 text-white rounded">Save</button>
+                        <button id="closeEditor" class="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Storage Manager
-        const StorageManager = {
-            MAX_PHOTOS: 50,
-            
-            async savePhoto(name, blob) {
-                const photos = this.getPhotos();
-                if (photos.length >= this.MAX_PHOTOS) {
-                    throw new Error('Maksimum fotoğraf limitine ulaşıldı');
-                }
-                
-                const reader = new FileReader();
-                return new Promise((resolve, reject) => {
-                    reader.onloadend = () => {
-                        const photoData = {
-                            id: Date.now(),
-                            name: name || `Fotoğraf ${photos.length + 1}`,
-                            data: reader.result,
-                            brightness: 100,
-                            sharpness: 100
-                        };
-                        photos.push(photoData);
-                        localStorage.setItem('photos', JSON.stringify(photos));
-                        resolve(photoData);
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            },
-
-            getPhotos() {
-                return JSON.parse(localStorage.getItem('photos') || '[]');
-            },
-
-            deletePhoto(id) {
-                const photos = this.getPhotos().filter(photo => photo.id !== id);
-                localStorage.setItem('photos', JSON.stringify(photos));
-            },
-
-            deleteAllPhotos() {
-                localStorage.removeItem('photos');
-            },
-
-            updatePhoto(id, updates) {
-                const photos = this.getPhotos();
-                const index = photos.findIndex(photo => photo.id === id);
-                if (index !== -1) {
-                    photos[index] = { ...photos[index], ...updates };
-                    localStorage.setItem('photos', JSON.stringify(photos));
-                }
-            }
-        };
-
-        // Camera Manager
-        const CameraManager = {
-            video: document.getElementById('video'),
+        // Camera handling
+        const cameraModule = {
+            video: document.getElementById('camera'),
             stream: null,
+            currentFacingMode: 'user',
 
             async init() {
-                const constraints = {
-                    video: {
-                        facingMode: this.isMobile() ? 'environment' : 'user',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    }
-                };
-
                 try {
-                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: this.currentFacingMode,
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        }
+                    });
                     this.video.srcObject = this.stream;
                 } catch (err) {
-                    console.error('Kamera erişimi hatası:', err);
-                    alert('Kamera erişimi sağlanamadı');
+                    console.error('Camera error:', err);
+                    alert('Unable to access camera. Please check permissions.');
                 }
             },
 
-            isMobile() {
-                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            async switchCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                }
+                this.currentFacingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
+                await this.init();
             },
 
             capturePhoto() {
                 const canvas = document.createElement('canvas');
-                // 35x45mm at 300 DPI
-                canvas.width = 413;
-                canvas.height = 531;
+                canvas.width = 354;  // 35mm at 10px/mm
+                canvas.height = 450; // 45mm at 10px/mm
                 const ctx = canvas.getContext('2d');
-
-                // Calculate crop dimensions
-                const videoAspect = this.video.videoWidth / this.video.videoHeight;
-                const targetAspect = 35/45;
                 
-                let cropWidth = this.video.videoWidth;
-                let cropHeight = cropWidth / targetAspect;
+                // Calculate aspect ratio preservation
+                const videoRatio = this.video.videoWidth / this.video.videoHeight;
+                const targetRatio = canvas.width / canvas.height;
                 
-                if (cropHeight > this.video.videoHeight) {
-                    cropHeight = this.video.videoHeight;
-                    cropWidth = cropHeight * targetAspect;
+                let drawWidth = this.video.videoWidth;
+                let drawHeight = this.video.videoHeight;
+                let offsetX = 0;
+                let offsetY = 0;
+                
+                if (videoRatio > targetRatio) {
+                    drawWidth = this.video.videoHeight * targetRatio;
+                    offsetX = (this.video.videoWidth - drawWidth) / 2;
+                } else {
+                    drawHeight = this.video.videoWidth / targetRatio;
+                    offsetY = (this.video.videoHeight - drawHeight) / 2;
                 }
-
-                const x = (this.video.videoWidth - cropWidth) / 2;
-                const y = (this.video.videoHeight - cropHeight) / 2;
-
-                ctx.drawImage(this.video, x, y, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
-
-                return new Promise((resolve) => {
-                    canvas.toBlob(resolve, 'image/jpeg', 0.95);
-                });
-            },
-
-            stop() {
-                if (this.stream) {
-                    this.stream.getTracks().forEach(track => track.stop());
-                }
+                
+                ctx.drawImage(this.video, 
+                    offsetX, offsetY, drawWidth, drawHeight,
+                    0, 0, canvas.width, canvas.height
+                );
+                
+                return canvas.toDataURL('image/jpeg', 0.95);
             }
         };
 
-        // Gallery Manager
-        const GalleryManager = {
-            photoGrid: document.getElementById('photoGrid'),
+        // Gallery handling
+        const galleryModule = {
+            container: document.getElementById('gallery'),
+            photos: [],
 
-            renderPhotos() {
-                const photos = StorageManager.getPhotos();
-                this.photoGrid.innerHTML = photos.map(photo => this.createPhotoElement(photo)).join('');
-                this.attachPhotoListeners();
+            init() {
+                this.loadPhotos();
+                this.render();
             },
 
-            createPhotoElement(photo) {
-                return `
-                    <div class="relative group" data-id="${photo.id}">
-                        <img src="${photo.data}" alt="${photo.name}" class="w-full h-auto rounded">
-                        <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div class="absolute bottom-0 left-0 right-0 p-2">
-                                <input type="text" value="${photo.name}" class="photo-name w-full mb-2 p-1 text-sm">
-                                <div class="flex space-x-2 mb-2">
-                                    <input type="range" min="0" max="200" value="${photo.brightness}" class="brightness-slider">
-                                    <input type="range" min="0" max="200" value="${photo.sharpness}" class="sharpness-slider">
-                                </div>
-                                <button class="delete-photo w-full bg-red-500 text-white py-1 rounded text-sm">Sil</button>
-                            </div>
+            loadPhotos() {
+                const stored = localStorage.getItem('passportPhotos');
+                this.photos = stored ? JSON.parse(stored) : [];
+            },
+
+            savePhotos() {
+                localStorage.setItem('passportPhotos', JSON.stringify(this.photos));
+            },
+
+            addPhoto(dataUrl) {
+                const photo = {
+                    id: Date.now(),
+                    name: `Photo ${this.photos.length + 1}`,
+                    dataUrl,
+                    brightness: 100,
+                    sharpness: 100
+                };
+                this.photos.unshift(photo);
+                this.savePhotos();
+                this.render();
+            },
+
+            deletePhoto(id) {
+                this.photos = this.photos.filter(photo => photo.id !== id);
+                this.savePhotos();
+                this.render();
+            },
+
+            updatePhoto(id, updates) {
+                this.photos = this.photos.map(photo => 
+                    photo.id === id ? { ...photo, ...updates } : photo
+                );
+                this.savePhotos();
+                this.render();
+            },
+
+            render() {
+                this.container.innerHTML = this.photos.map(photo => `
+                    <div class="relative group">
+                        <img src="${photo.dataUrl}" 
+                             alt="${photo.name}"
+                             class="w-full h-48 object-cover rounded"
+                             style="filter: brightness(${photo.brightness}%) contrast(${photo.sharpness}%)">
+                        <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+                            <button onclick="editPhoto(${photo.id})" class="p-2 bg-white rounded-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="downloadPhoto(${photo.id})" class="p-2 bg-white rounded-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                `;
-            },
-
-            attachPhotoListeners() {
-                // Name change listeners
-                document.querySelectorAll('.photo-name').forEach(input => {
-                    input.addEventListener('change', (e) => {
-                        const id = parseInt(e.target.closest('[data-id]').dataset.id);
-                        StorageManager.updatePhoto(id, { name: e.target.value });
-                    });
-                });
-
-                // Delete button listeners
-                document.querySelectorAll('.delete-photo').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const id = parseInt(e.target.closest('[data-id]').dataset.id);
-                        StorageManager.deletePhoto(id);
-                        this.renderPhotos();
-                    });
-                });
-
-                // Slider listeners
-                document.querySelectorAll('.brightness-slider, .sharpness-slider').forEach(slider => {
-                    slider.addEventListener('change', (e) => {
-                        const id = parseInt(e.target.closest('[data-id]').dataset.id);
-                        const updates = {};
-                        if (slider.classList.contains('brightness-slider')) {
-                            updates.brightness = parseInt(e.target.value);
-                        } else {
-                            updates.sharpness = parseInt(e.target.value);
-                        }
-                        StorageManager.updatePhoto(id, updates);
-                    });
-                });
-            },
-
-            async downloadPhotos() {
-                const photos = StorageManager.getPhotos();
-                if (photos.length === 0) return;
-
-                if (photos.length === 1) {
-                    const link = document.createElement('a');
-                    link.href = photos[0].data;
-                    link.download = `${photos[0].name}.jpg`;
-                    link.click();
-                    return;
-                }
-
-                const zip = new JSZip();
-                photos.forEach(photo => {
-                    const base64Data = photo.data.split(',')[1];
-                    zip.file(`${photo.name}.jpg`, base64Data, {base64: true});
-                });
-
-                const content = await zip.generateAsync({type: 'blob'});
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(content);
-                link.download = 'vesikalik_fotograf.zip';
-                link.click();
-            },
-
-            async sharePhotos() {
-                if (!navigator.share) {
-                    alert('Paylaşım özelliği bu cihazda desteklenmiyor');
-                    return;
-                }
-
-                const photos = StorageManager.getPhotos();
-                if (photos.length === 0) return;
-
-                try {
-                    const zip = new JSZip();
-                    photos.forEach(photo => {
-                        const base64Data = photo.data.split(',')[1];
-                        zip.file(`${photo.name}.jpg`, base64Data, {base64: true});
-                    });
-
-                    const content = await zip.generateAsync({type: 'blob'});
-                    const file = new File([content], 'vesikalik_fotograf.zip', {
-                        type: 'application/zip'
-                    });
-
-                    await navigator.share({
-                        files: [file],
-                        title: 'Vesikalık Fotoğraflar',
-                    });
-                } catch (err) {
-                    console.error('Paylaşım hatası:', err);
-                    alert('Paylaşım sırasında bir hata oluştu');
-                }
+                `).join('');
             }
         };
 
-        // Main App
+        // Editor handling
+        const editorModule = {
+            modal: document.getElementById('editorModal'),
+            brightnessSlider: document.getElementById('brightnessSlider'),
+            sharpnessSlider: document.getElementById('sharpnessSlider'),
+            nameInput: document.getElementById('photoName'),
+            currentPhotoId: null,
+
+            show(photo) {
+                this.currentPhotoId = photo.id;
+                this.brightnessSlider.value = photo.brightness;
+                this.sharpnessSlider.value = photo.sharpness;
+                this.nameInput.value = photo.name;
+                this.modal.classList.remove('hidden');
+            },
+
+            hide() {
+                this.modal.classList.add('hidden');
+                this.currentPhotoId = null;
+            },
+
+            saveEdits() {
+                if (!this.currentPhotoId) return;
+                
+                galleryModule.updatePhoto(this.currentPhotoId, {
+                    brightness: parseInt(this.brightnessSlider.value),
+                    sharpness: parseInt(this.sharpnessSlider.value),
+                    name: this.nameInput.value
+                });
+                
+                this.hide();
+            }
+        };
+
+        // Initialize application
         async function initApp() {
-            await CameraManager.init();
-            GalleryManager.renderPhotos();
+            await cameraModule.init();
+            galleryModule.init();
 
-            // Event Listeners
-            document.getElementById('captureBtn').addEventListener('click', async () => {
-                const blob = await CameraManager.capturePhoto();
-                const name = document.getElementById('photoName').value;
-                await StorageManager.savePhoto(name, blob);
-                GalleryManager.renderPhotos();
+            // Event listeners
+            document.getElementById('switchCamera').addEventListener('click', () => cameraModule.switchCamera());
+            document.getElementById('capture').addEventListener('click', () => {
+                const photoData = cameraModule.capturePhoto();
+                galleryModule.addPhoto(photoData);
             });
-
-            document.getElementById('deleteAllBtn').addEventListener('click', () => {
-                if (confirm('Tüm fotoğrafları silmek istediğinizden emin misiniz?')) {
-                    StorageManager.deleteAllPhotos();
-                    GalleryManager.renderPhotos();
+            document.getElementById('saveEdits').addEventListener('click', () => editorModule.saveEdits());
+            document.getElementById('closeEditor').addEventListener('click', () => editorModule.hide());
+            document.getElementById('deletePhoto').addEventListener('click', () => {
+                if (editorModule.currentPhotoId) {
+                    galleryModule.deletePhoto(editorModule.currentPhotoId);
+                    editorModule.hide();
                 }
-            });
-
-            document.getElementById('downloadBtn').addEventListener('click', () => {
-                GalleryManager.downloadPhotos();
-            });
-
-            document.getElementById('shareBtn').addEventListener('click', () => {
-                GalleryManager.sharePhotos();
             });
         }
 
+        // Helper functions
+        function editPhoto(id) {
+            const photo = galleryModule.photos.find(p => p.id === id);
+            if (photo) {
+                editorModule.show(photo);
+            }
+        }
+
+        function downloadPhoto(id) {
+            const photo = galleryModule.photos.find(p => p.id === id);
+            if (photo) {
+                const link = document.createElement('a');
+                link.href = photo.dataUrl;
+                link.download = `${photo.name}.jpg`;
+                link.click();
+            }
+        }
+
+        // Start the application
         initApp();
     </script>
 </body>
