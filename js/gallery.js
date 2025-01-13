@@ -22,10 +22,18 @@ export class Gallery {
         const downloadBtn = document.getElementById('download-btn');
         const deleteAllBtn = document.getElementById('delete-all-btn');
 
+        // Debug için tek fotoğraf paylaşma butonu
+        const debugShareBtn = document.createElement('button');
+        debugShareBtn.id = 'debug-share-btn';
+        debugShareBtn.className = 'px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600';
+        debugShareBtn.textContent = 'Tek Paylaş';
+        shareBtn.parentNode.insertBefore(debugShareBtn, shareBtn);
+
         if (!this.listenersInitialized) {
             shareBtn.addEventListener('click', () => this.shareAll());
             downloadBtn.addEventListener('click', () => this.downloadAll());
             deleteAllBtn.addEventListener('click', () => this.deleteAll());
+            debugShareBtn.addEventListener('click', () => this.shareSingle());
 
             this.listenersInitialized = true;
         }
@@ -354,13 +362,6 @@ export class Gallery {
     async shareAll() {
         console.log('shareAll started');
         try {
-            console.log('Web Share API support check:', {
-                shareAvailable: !!navigator.share,
-                canShareAvailable: !!navigator.canShare,
-                userAgent: navigator.userAgent,
-                platform: navigator.platform
-            });
-
             const photosWithBlobs = await this.storage.getPhotosAsBlobs();
 
             if (photosWithBlobs.length === 0) {
@@ -371,7 +372,7 @@ export class Gallery {
 
             console.log(`Processing ${photosWithBlobs.length} photos for sharing`);
 
-            // Her durumda ZIP oluştur
+            // ZIP oluştur
             const zip = new JSZip();
             for (const photo of photosWithBlobs) {
                 console.log(`Adding photo to ZIP: ${photo.name}`);
@@ -385,69 +386,32 @@ export class Gallery {
                 compressionOptions: { level: 9 }
             });
 
-            console.log('ZIP file details:', {
-                size: zipBlob.size,
-                type: zipBlob.type
-            });
+            // ZIP'i IndexedDB'ye kaydet
+            const zipId = await this.storage.saveZip(zipBlob);
 
-            // ZIP dosyasını paylaşmayı dene
-            const file = new File([zipBlob], 'vesikalik_fotograflar.zip', {
+            // ZIP'i DB'den al ve paylaş
+            const savedZipBlob = await this.storage.getZip(zipId);
+            const file = new File([savedZipBlob], 'vesikalik_fotograflar.zip', {
                 type: 'application/zip'
             });
 
-            console.log('File object created:', {
-                name: file.name,
-                size: file.size,
-                type: file.type
-            });
-
-            const shareData = {
-                files: [file]
-            };
-
-            // Önce normal ZIP paylaşımını dene
-            if (navigator.canShare && navigator.canShare(shareData)) {
-                console.log('Sharing with ZIP MIME type');
-                await navigator.share(shareData);
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Vesikalık Fotoğraflar',
+                    text: 'Vesikalık uygulamasından paylaşılan fotoğraflar'
+                });
                 this.toast.show('Paylaşım başarılı', 'success');
-                return;
+            } else {
+                throw new Error('Bu içerik paylaşılamıyor');
             }
 
-            // ZIP paylaşılamıyorsa alternatif MIME type dene
-            const altFile = new File([zipBlob], 'vesikalik_fotograflar.zip', {
-                type: 'application/octet-stream'
-            });
-
-            if (navigator.canShare && navigator.canShare({ files: [altFile] })) {
-                console.log('Sharing with alternative MIME type');
-                await navigator.share({ files: [altFile] });
-                this.toast.show('Paylaşım başarılı', 'success');
-                return;
-            }
-
-            throw new Error('Bu içerik paylaşılamıyor');
+            // Paylaşım tamamlandıktan sonra geçici ZIP'i sil
+            await this.storage.deleteZip(zipId);
 
         } catch (error) {
-            console.error('Share error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-            });
-
-            if (error.name === 'AbortError') {
-                console.log('Share was aborted by user');
-                return; // Kullanıcı iptal ettiyse mesaj gösterme
-            }
-
-            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
-            if (error.name === 'NotAllowedError') {
-                errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
-            } else if (error.name === 'NotFoundError') {
-                errorMessage = 'Paylaşım servisi bulunamadı.';
-            }
-
-            console.log('Displaying error to user:', errorMessage);
-            await this.dialog.alert(errorMessage, 'Paylaşım Hatası');
+            console.error('Share error details:', error);
+            await this.dialog.alert('Paylaşım sırasında bir hata oluştu.', 'Paylaşım Hatası');
         }
     }
 
@@ -530,6 +494,44 @@ export class Gallery {
         } catch (error) {
             console.error('Yeniden adlandırma hatası:', error);
             this.toast.show('İsim değiştirme başarısız oldu', 'error');
+        }
+    }
+
+    // Tek fotoğraf paylaşımı için yeni metod
+    async shareSingle() {
+        try {
+            const photos = await this.storage.getPhotos();
+            if (photos.length === 0) {
+                this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
+                return;
+            }
+
+            // İlk fotoğrafı al
+            const photo = photos[0];
+
+            // Base64'ten Blob'a çevir
+            const response = await fetch(photo.data);
+            const blob = await response.blob();
+
+            // Paylaşım için dosya oluştur
+            const file = new File([blob], `${photo.name}.jpg`, {
+                type: 'image/jpeg'
+            });
+
+            // Web Share API ile paylaş
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Vesikalık Fotoğraf',
+                    text: 'Vesikalık uygulamasından paylaşılan fotoğraf'
+                });
+                this.toast.show('Paylaşım başarılı', 'success');
+            } else {
+                throw new Error('Bu fotoğraf paylaşılamıyor');
+            }
+        } catch (error) {
+            console.error('Paylaşım hatası:', error);
+            await this.dialog.alert(error.message, 'Paylaşım Hatası');
         }
     }
 }
