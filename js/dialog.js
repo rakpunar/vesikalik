@@ -6,13 +6,11 @@ export class Dialog {
     }
 
     setupDialog() {
-        // Ana dialog container
         this.container = document.createElement('div');
-        this.container.className = 'dialog-overlay hidden';
+        this.container.className = 'dialog-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-200 backdrop-blur-sm';
 
-        // Dialog içeriği
         this.content = document.createElement('div');
-        this.content.className = 'dialog-content';
+        this.content.className = 'dialog-content bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl transform transition-transform';
 
         // PWA için safe-area-inset desteği
         this.content.style.paddingBottom = 'env(safe-area-inset-bottom)';
@@ -52,7 +50,11 @@ export class Dialog {
     }
 
     show() {
+        this.content.style.transform = 'scale(0.95)';
         this.container.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            this.content.style.transform = 'scale(1)';
+        });
         // PWA için history state
         history.pushState(null, '');
         // PWA için ekran kilitlenmesini engelle
@@ -68,30 +70,24 @@ export class Dialog {
         this.rejectCallback = null;
     }
 
-    createButtons(options) {
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'dialog-buttons';
+    createButtons(buttons) {
+        const container = document.createElement('div');
+        container.className = 'flex justify-end gap-2 mt-4';
 
-        Object.entries(options).forEach(([text, callback]) => {
+        Object.entries(buttons).forEach(([label, callback]) => {
             const button = document.createElement('button');
-            button.textContent = text;
-            button.className = 'dialog-button';
-
-            // PWA için dokunma geri bildirimi
-            if ('vibrate' in navigator) {
-                button.addEventListener('touchstart', () => {
-                    navigator.vibrate(1);
-                });
-            }
-
-            button.addEventListener('click', () => {
-                if (callback) callback();
+            button.className = 'px-4 py-2 rounded text-white transition-colors';
+            button.classList.add(label === 'İptal' ? 'bg-gray-600 hover:bg-gray-700' : 'bg-blue-600 hover:bg-blue-700');
+            button.textContent = label;
+            button.onclick = () => {
+                if ('vibrate' in navigator) navigator.vibrate(1);
+                callback();
                 this.hide();
-            });
-            buttonContainer.appendChild(button);
+            };
+            container.appendChild(button);
         });
 
-        return buttonContainer;
+        return container;
     }
 
     alert(message, title = 'Uyarı', type = 'info') {
