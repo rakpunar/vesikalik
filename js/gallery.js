@@ -369,7 +369,7 @@ export class Gallery {
             });
 
             const file = new File([zipBlob], 'fotograflar.zip', {
-                type: 'application/zip',
+                type: 'application/octet-stream',
                 lastModified: Date.now()
             });
             console.log('File object created:', {
