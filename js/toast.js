@@ -33,9 +33,9 @@ export class Toast {
         }
     }
 
-    show(message, type = 'error', duration = 5000) {
+    show(message, type = 'info', duration = 3000) {
         const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
+        toast.className = `toast toast-${type} transform translate-y-2 opacity-0`;
 
         const icon = document.createElement('div');
         icon.className = 'toast-icon';
@@ -67,12 +67,15 @@ export class Toast {
 
         // Animasyon için requestAnimationFrame
         requestAnimationFrame(() => {
-            toast.classList.add('show');
+            toast.style.transform = 'translate(0)';
+            toast.style.opacity = '1';
         });
 
         // Otomatik kapanma
         setTimeout(() => {
-            this.hide(toast);
+            toast.style.transform = 'translate-y-2';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
         }, duration);
 
         // PWA için ses bildirimi
