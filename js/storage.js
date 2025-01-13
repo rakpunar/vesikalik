@@ -2,15 +2,53 @@
 export class Storage {
     constructor() {
         this.dbName = 'VesikalikApp';
-        this.dbVersion = 1;
+        this.dbVersion = 2;
         this.photoStore = 'photos';
+        this.zipStore = 'zips';
         this.MAX_PHOTOS = 25;
         this.dbReady = false;
-        this.zipStore = 'zips';
+
+        // IndexedDB başlat
         this.initDB();
+
+        // PWA için storage durumunu kontrol et
+        this.checkStorageQuota();
     }
 
-    // IndexedDB başlatma
+    async checkStorageQuota() {
+        if ('storage' in navigator && 'estimate' in navigator.storage) {
+            try {
+                const { usage, quota } = await navigator.storage.estimate();
+                const usedPercentage = (usage / quota) * 100;
+                console.log('Depolama durumu:', {
+                    used: this.formatBytes(usage),
+                    total: this.formatBytes(quota),
+                    percentage: usedPercentage.toFixed(2) + '%'
+                });
+
+                // Depolama alanı az kaldıysa uyar
+                if (usedPercentage > 80) {
+                    console.warn('Depolama alanı %80\'in üzerinde kullanılıyor');
+                }
+
+                // Depolama izni iste
+                if ('persist' in navigator && !await navigator.storage.persist()) {
+                    console.warn('Kalıcı depolama izni alınamadı');
+                }
+            } catch (error) {
+                console.error('Depolama durumu kontrol edilemedi:', error);
+            }
+        }
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
     async initDB() {
         try {
             const request = indexedDB.open(this.dbName, this.dbVersion);
@@ -22,24 +60,52 @@ export class Storage {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+
+                // Photos store
                 if (!db.objectStoreNames.contains(this.photoStore)) {
                     const store = db.createObjectStore(this.photoStore, { keyPath: 'id' });
                     store.createIndex('timestamp', 'timestamp', { unique: false });
                     store.createIndex('name', 'name', { unique: false });
                 }
+
+                // Zips store - PWA için geçici ZIP depolama
                 if (!db.objectStoreNames.contains(this.zipStore)) {
                     db.createObjectStore(this.zipStore, { keyPath: 'id' });
                 }
             };
 
-            request.onsuccess = (event) => {
+            request.onsuccess = async (event) => {
                 this.db = event.target.result;
                 this.dbReady = true;
-                this.migrateFromLocalStorage();
+
+                // PWA için periyodik temizlik
+                await this.cleanupOldData();
             };
         } catch (error) {
             console.error('IndexedDB init hatası:', error);
             this.fallbackToLocalStorage = true;
+        }
+    }
+
+    async cleanupOldData() {
+        try {
+            // 24 saatten eski ZIP dosyalarını temizle
+            const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+            const transaction = this.db.transaction(this.zipStore, 'readwrite');
+            const store = transaction.objectStore(this.zipStore);
+            const request = store.openCursor();
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.timestamp < oneDayAgo) {
+                        store.delete(cursor.key);
+                    }
+                    cursor.continue();
+                }
+            };
+        } catch (error) {
+            console.error('Temizlik işlemi başarısız:', error);
         }
     }
 
@@ -140,34 +206,25 @@ export class Storage {
     }
 
     async addPhoto(photoData, name = '') {
-        if (!this.db) {
-            throw new Error('Veritabanı henüz hazır değil');
-        }
+        await this.waitForDB();
 
         const photos = await this.getPhotos();
         if (photos.length >= this.MAX_PHOTOS) {
             throw new Error('Maksimum fotoğraf sayısına ulaşıldı');
         }
 
-        const photoName = name.trim() || this.generateAutoName();
         const photo = {
             id: Date.now().toString(),
-            name: photoName,
+            name: name || this.generateAutoName(),
             data: photoData,
-            timestamp: Date.now(),
-            edits: {
-                brightness: 100,
-            }
+            timestamp: Date.now()
         };
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(this.photoStore, 'readwrite');
-            const store = transaction.objectStore(this.photoStore);
-            const request = store.add(photo);
+        const transaction = this.db.transaction(this.photoStore, 'readwrite');
+        const store = transaction.objectStore(this.photoStore);
+        await store.add(photo);
 
-            request.onsuccess = () => resolve(photo);
-            request.onerror = () => reject(request.error);
-        });
+        return photo;
     }
 
     async updatePhoto(id, updates) {
