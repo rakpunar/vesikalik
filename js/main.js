@@ -58,17 +58,20 @@ class App {
     }
 
     async initializeApp() {
-        const success = await this.camera.init();
-        if (!success) {
-            await this.dialog.alert(
-                'Kamera başlatılamadı. Lütfen kamera izinlerini kontrol edin.',
-                'Kamera Hatası'
-            );
-            return;
-        }
+        try {
+            window.app = {
+                camera: new Camera(),
+                gallery: new Gallery(),
+                debug: new Debug(),
+            };
 
-        this.gallery.render();
-        this.setupGuideLines();
+            // Kamera başlatma
+            await window.app.camera.init();
+
+            setupEventListeners();
+        } catch (error) {
+            console.error('Uygulama başlatma hatası:', error);
+        }
     }
 
     async deleteAllPhotos() {
