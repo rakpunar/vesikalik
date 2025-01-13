@@ -58,8 +58,9 @@ class App {
 
             // İsim null değilse (iptal edilmediyse) fotoğrafı kaydet
             if (name !== null) {
-                const photo = this.storage.addPhoto(photoData, name);
-                this.gallery.render();
+                const photo = await this.storage.addPhoto(photoData, name);
+                // Galeriyi güncelle
+                await this.gallery.render();
                 this.toast.show('Fotoğraf başarıyla kaydedildi', 'success');
             }
         } catch (error) {
