@@ -330,10 +330,7 @@ export class Gallery {
 
     async shareAll() {
         console.log('shareAll started');
-        const photos = this.storage.getPhotos();
-
         try {
-            // API Kontrolleri
             console.log('Web Share API support check:', {
                 shareAvailable: !!navigator.share,
                 canShareAvailable: !!navigator.canShare,
@@ -341,52 +338,67 @@ export class Gallery {
                 platform: navigator.platform
             });
 
-            if (photos.length === 0) {
+            const photosWithBlobs = await this.storage.getPhotosAsBlobs();
+
+            if (photosWithBlobs.length === 0) {
                 console.log('No photos to share');
                 this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
                 return;
             }
 
-            console.log(`Processing ${photos.length} photos for sharing`);
+            console.log(`Processing ${photosWithBlobs.length} photos for sharing`);
 
-            // Dosya hazırlama süreci
+            // Her durumda ZIP oluştur
             const zip = new JSZip();
-            photos.forEach((photo, index) => {
-                try {
-                    const base64Data = photo.data.split(',')[1];
-                    console.log(`Photo ${index + 1}: Name=${photo.name}, Size=${base64Data.length} bytes`);
-                    zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
-                } catch (error) {
-                    console.error(`Error processing photo ${index + 1}:`, error);
-                }
-            });
+
+            for (const photo of photosWithBlobs) {
+                console.log(`Adding photo to ZIP: ${photo.name}`);
+                zip.file(`${photo.name}.jpg`, photo.blob);
+            }
 
             console.log('Generating ZIP file...');
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const zipBlob = await zip.generateAsync({
+                type: 'blob',
+                compression: 'DEFLATE',
+                compressionOptions: { level: 9 }
+            });
+
             console.log('ZIP file details:', {
                 size: zipBlob.size,
                 type: zipBlob.type
             });
 
-            const file = new File([zipBlob], 'fotograflar.vip', {
+            const file = new File([zipBlob], 'vesikalik_fotograflar.zip', {
                 type: 'application/zip',
                 lastModified: Date.now()
             });
+
             console.log('File object created:', {
                 name: file.name,
                 size: file.size,
                 type: file.type
             });
 
-            const shareData = { files: [file], title: 'Fotoğraflar' };
+            const shareData = {
+                files: [file],
+                title: 'Vesikalık Fotoğraflar'
+            };
 
-            // Paylaşım kontrolü
-            if (navigator.canShare) {
-                const canShare = navigator.canShare(shareData);
-                console.log('Can share check:', canShare);
-                if (!canShare) {
-                    throw new Error('Bu içerik paylaşılamıyor');
+            if (navigator.canShare && !navigator.canShare(shareData)) {
+                console.log('Trying alternative share method');
+                // ZIP paylaşılamıyorsa alternatif MIME type dene
+                const altFile = new File([zipBlob], 'photos.zip', {
+                    type: 'application/octet-stream'
+                });
+
+                if (navigator.canShare({ files: [altFile] })) {
+                    console.log('Sharing with alternative MIME type');
+                    await navigator.share({ files: [altFile] });
+                    this.toast.show('Paylaşım başarılı', 'success');
+                    return;
                 }
+
+                throw new Error('Bu içerik paylaşılamıyor');
             }
 
             console.log('Attempting to share...');
@@ -401,7 +413,6 @@ export class Gallery {
                 stack: error.stack
             });
 
-            // Özel hata mesajları
             let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
             if (error.name === 'AbortError') {
                 console.log('Share was aborted by user');
@@ -410,8 +421,6 @@ export class Gallery {
                 errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
             } else if (error.name === 'NotFoundError') {
                 errorMessage = 'Paylaşım servisi bulunamadı.';
-            } else if (error.name === 'TypeError') {
-                errorMessage = 'Bu cihazda dosya paylaşımı desteklenmiyor.';
             }
 
             console.log('Displaying error to user:', errorMessage);
