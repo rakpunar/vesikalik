@@ -15,52 +15,35 @@ export class Camera {
 
     async init() {
         try {
-            // Kamera özelliklerini belirle
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Kamera erişimi desteklenmiyor');
+            }
+
             const constraints = {
                 video: {
                     facingMode: this.isMobile ? 'environment' : 'user',
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    // Mobilde geniş açı kamerayı engelle
-                    advanced: [{ facingMode: 'environment' }, { zoom: 1 }]
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
                 }
             };
 
-            // PWA için izin kontrolü
-            if ('permissions' in navigator) {
-                const permission = await navigator.permissions.query({ name: 'camera' });
-                if (permission.state === 'denied') {
-                    throw new Error('Kamera izni reddedildi');
-                }
-            }
-
-            // Mevcut stream varsa kapat
             if (this.stream) {
                 this.stream.getTracks().forEach(track => track.stop());
             }
 
-            // Yeni stream başlat
             this.stream = await navigator.mediaDevices.getUserMedia(constraints);
             this.video.srcObject = this.stream;
 
-            // En iyi kamera ayarlarını seç
-            const track = this.stream.getVideoTracks()[0];
-            const capabilities = track.getCapabilities();
-            const settings = track.getSettings();
+            return new Promise((resolve) => {
+                this.video.onloadedmetadata = () => {
+                    this.video.play();
+                    resolve(true);
+                };
+            });
 
-            // PWA için ekran kilidi
-            if ('wakeLock' in navigator) {
-                try {
-                    await navigator.wakeLock.request('screen');
-                } catch (err) {
-                    console.log('Ekran kilidi aktifleştirilemedi:', err);
-                }
-            }
-
-            return true;
         } catch (error) {
             console.error('Kamera başlatma hatası:', error);
-            return false;
+            throw error;
         }
     }
 
