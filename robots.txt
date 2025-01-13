@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /share-target/
+Disallow: /api/
+Sitemap: https://rakpunar.github.io/vesikalik/sitemap.xml 
