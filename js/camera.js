@@ -48,52 +48,57 @@ export class Camera {
             return true;
         } catch (error) {
             console.error('Kamera başlatma hatası:', error);
-            return false;
+            throw new Error('Kamera başlatılamadı: ' + error.message);
         }
     }
 
     async flashAndCapture() {
-        // Flaş efekti için div oluştur veya varsa al
-        let flashElement = document.querySelector('.camera-flash');
-        if (!flashElement) {
-            flashElement = document.createElement('div');
-            flashElement.className = 'camera-flash';
-            document.getElementById('camera-container').appendChild(flashElement);
+        try {
+            // Flaş efekti için div oluştur veya varsa al
+            let flashElement = document.querySelector('.camera-flash');
+            if (!flashElement) {
+                flashElement = document.createElement('div');
+                flashElement.className = 'camera-flash';
+                document.getElementById('camera-container').appendChild(flashElement);
+            }
+
+            // Önce flaş efektini göster ve bekle
+            return new Promise((resolve) => {
+                flashElement.classList.add('active');
+
+                setTimeout(() => {
+                    flashElement.classList.remove('active');
+
+                    // Flaş efekti bittikten sonra fotoğrafı çek
+                    const canvas = document.createElement('canvas');
+                    const cropGuide = document.getElementById('crop-guide');
+                    const rect = cropGuide.getBoundingClientRect();
+                    const videoRect = this.video.getBoundingClientRect();
+
+                    const scaleX = this.video.videoWidth / videoRect.width;
+                    const scaleY = this.video.videoHeight / videoRect.height;
+
+                    const cropX = (rect.left - videoRect.left) * scaleX;
+                    const cropY = (rect.top - videoRect.top) * scaleY;
+                    const cropWidth = rect.width * scaleX;
+                    const cropHeight = rect.height * scaleY;
+
+                    canvas.width = cropWidth;
+                    canvas.height = cropHeight;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(this.video,
+                        cropX, cropY, cropWidth, cropHeight,
+                        0, 0, cropWidth, cropHeight
+                    );
+
+                    resolve(canvas.toDataURL('image/jpeg', 0.95));
+                }, 500); // Flaş animasyonu için 300ms bekle
+            });
+        } catch (error) {
+            console.error('Fotoğraf çekme hatası:', error);
+            throw new Error('Fotoğraf çekilemedi: ' + error.message);
         }
-
-        // Önce flaş efektini göster ve bekle
-        return new Promise((resolve) => {
-            flashElement.classList.add('active');
-
-            setTimeout(() => {
-                flashElement.classList.remove('active');
-
-                // Flaş efekti bittikten sonra fotoğrafı çek
-                const canvas = document.createElement('canvas');
-                const cropGuide = document.getElementById('crop-guide');
-                const rect = cropGuide.getBoundingClientRect();
-                const videoRect = this.video.getBoundingClientRect();
-
-                const scaleX = this.video.videoWidth / videoRect.width;
-                const scaleY = this.video.videoHeight / videoRect.height;
-
-                const cropX = (rect.left - videoRect.left) * scaleX;
-                const cropY = (rect.top - videoRect.top) * scaleY;
-                const cropWidth = rect.width * scaleX;
-                const cropHeight = rect.height * scaleY;
-
-                canvas.width = cropWidth;
-                canvas.height = cropHeight;
-
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(this.video,
-                    cropX, cropY, cropWidth, cropHeight,
-                    0, 0, cropWidth, cropHeight
-                );
-
-                resolve(canvas.toDataURL('image/jpeg', 0.95));
-            }, 500); // Flaş animasyonu için 300ms bekle
-        });
     }
 
     stop() {
