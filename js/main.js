@@ -74,18 +74,6 @@ class App {
 
         document.getElementById('capture-btn').addEventListener('click', () => this.capturePhoto());
 
-        document.getElementById('delete-all-btn').addEventListener('click', () => {
-            this.gallery.deleteAll();
-        });
-
-        document.getElementById('download-btn').addEventListener('click', () => {
-            this.gallery.downloadAll();
-        });
-
-        document.getElementById('share-btn').addEventListener('click', () => {
-            this.gallery.shareAll();
-        });
-
         window.addEventListener('beforeunload', () => {
             this.camera.stop();
         });
