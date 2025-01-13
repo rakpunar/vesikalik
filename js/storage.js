@@ -214,18 +214,27 @@ export class Storage {
             throw new Error('Maksimum fotoğraf sayısına ulaşıldı');
         }
 
+        // XSS koruması
+        const sanitizedName = name.replace(/[<>]/g, '');
+
         const photo = {
             id: Date.now().toString(),
-            name: name || this.generateAutoName(),
+            name: sanitizedName || this.generateAutoName(),
             data: photoData,
             timestamp: Date.now()
         };
 
-        const transaction = this.db.transaction(this.photoStore, 'readwrite');
-        const store = transaction.objectStore(this.photoStore);
-        await store.add(photo);
-
-        return photo;
+        try {
+            const transaction = this.db.transaction(this.photoStore, 'readwrite');
+            const store = transaction.objectStore(this.photoStore);
+            await store.add(photo);
+            // Transaction başarılı olduğunda cache'i temizle
+            this.clearPhotoCache();
+            return photo;
+        } catch (error) {
+            console.error('Fotoğraf kaydetme hatası:', error);
+            throw new Error('Fotoğraf kaydedilemedi');
+        }
     }
 
     async updatePhoto(id, updates) {
