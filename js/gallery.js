@@ -10,34 +10,25 @@ export class Gallery {
         this.currentPhotoId = null;
         this.dialog = new Dialog();
         this.toast = new Toast();
-        this.setupModalListeners();
         this.cropper = null;
+        this.listenersInitialized = false;
 
-        // Event listener'ları tek bir metotta toplayalım
+        this.setupModalListeners();
         this.setupGalleryListeners();
     }
 
-    // Yeni metod: Galeri butonlarının event listener'larını ayarla
     setupGalleryListeners() {
-        // Önce mevcut listener'ları temizle
         const shareBtn = document.getElementById('share-btn');
         const downloadBtn = document.getElementById('download-btn');
         const deleteAllBtn = document.getElementById('delete-all-btn');
 
-        // Eski listener'ları kaldır (varsa)
-        shareBtn.replaceWith(shareBtn.cloneNode(true));
-        downloadBtn.replaceWith(downloadBtn.cloneNode(true));
-        deleteAllBtn.replaceWith(deleteAllBtn.cloneNode(true));
+        if (!this.listenersInitialized) {
+            shareBtn.addEventListener('click', () => this.shareAll());
+            downloadBtn.addEventListener('click', () => this.downloadAll());
+            deleteAllBtn.addEventListener('click', () => this.deleteAll());
 
-        // Yeni referansları al
-        const newShareBtn = document.getElementById('share-btn');
-        const newDownloadBtn = document.getElementById('download-btn');
-        const newDeleteAllBtn = document.getElementById('delete-all-btn');
-
-        // Yeni listener'ları ekle
-        newShareBtn.addEventListener('click', () => this.shareAll());
-        newDownloadBtn.addEventListener('click', () => this.downloadAll());
-        newDeleteAllBtn.addEventListener('click', () => this.deleteAll());
+            this.listenersInitialized = true;
+        }
     }
 
     async render() {
