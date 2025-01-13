@@ -329,45 +329,93 @@ export class Gallery {
     }
 
     async shareAll() {
-        try {
-            console.log('Share API mevcut:', !!navigator.share);
-            console.log('CanShare API mevcut:', !!navigator.canShare);
+        console.log('shareAll started');
+        const photos = this.storage.getPhotos();
 
-            const photos = this.storage.getPhotos();
+        try {
+            // API Kontrolleri
+            console.log('Web Share API support check:', {
+                shareAvailable: !!navigator.share,
+                canShareAvailable: !!navigator.canShare,
+                userAgent: navigator.userAgent,
+                platform: navigator.platform
+            });
+
             if (photos.length === 0) {
+                console.log('No photos to share');
                 this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
                 return;
             }
 
+            console.log(`Processing ${photos.length} photos for sharing`);
+
+            // Dosya hazırlama süreci
             const zip = new JSZip();
-            photos.forEach(photo => {
-                // Base64'ü kontrol et
-                console.log('Photo data length:', photo.data.length);
-                const base64Data = photo.data.split(',')[1];
-                zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
+            photos.forEach((photo, index) => {
+                try {
+                    const base64Data = photo.data.split(',')[1];
+                    console.log(`Photo ${index + 1}: Name=${photo.name}, Size=${base64Data.length} bytes`);
+                    zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
+                } catch (error) {
+                    console.error(`Error processing photo ${index + 1}:`, error);
+                }
             });
 
+            console.log('Generating ZIP file...');
             const zipBlob = await zip.generateAsync({ type: 'blob' });
-            console.log('Zip blob size:', zipBlob.size);
+            console.log('ZIP file details:', {
+                size: zipBlob.size,
+                type: zipBlob.type
+            });
 
             const file = new File([zipBlob], 'fotograflar.zip', {
                 type: 'application/zip',
                 lastModified: Date.now()
             });
-            console.log('File created:', file.name, file.type, file.size);
+            console.log('File object created:', {
+                name: file.name,
+                size: file.size,
+                type: file.type
+            });
 
             const shareData = { files: [file], title: 'Fotoğraflar' };
-            console.log('Share data:', shareData);
 
-            // Paylaşım özelliğini detaylı kontrol et
+            // Paylaşım kontrolü
             if (navigator.canShare) {
-                console.log('Can share check:', navigator.canShare(shareData));
+                const canShare = navigator.canShare(shareData);
+                console.log('Can share check:', canShare);
+                if (!canShare) {
+                    throw new Error('Bu içerik paylaşılamıyor');
+                }
             }
 
+            console.log('Attempting to share...');
             await navigator.share(shareData);
+            console.log('Share successful');
+            this.toast.show('Paylaşım başarılı', 'success');
+
         } catch (error) {
-            console.error('Share error:', error);
-            // ... hata işleme
+            console.error('Share error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+
+            // Özel hata mesajları
+            let errorMessage = 'Paylaşım sırasında bir hata oluştu.';
+            if (error.name === 'AbortError') {
+                console.log('Share was aborted by user');
+                return; // Kullanıcı iptal ettiyse mesaj gösterme
+            } else if (error.name === 'NotAllowedError') {
+                errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'Paylaşım servisi bulunamadı.';
+            } else if (error.name === 'TypeError') {
+                errorMessage = 'Bu cihazda dosya paylaşımı desteklenmiyor.';
+            }
+
+            console.log('Displaying error to user:', errorMessage);
+            await this.dialog.alert(errorMessage, 'Paylaşım Hatası');
         }
     }
 
