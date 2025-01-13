@@ -55,17 +55,11 @@ export class Storage {
 
     // Güncellenmiş getPhotos metodu
     async getPhotos() {
-        if (this.fallbackToLocalStorage) {
-            const photos = localStorage.getItem('photos');
-            return photos ? JSON.parse(photos) : [];
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
         }
 
         return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Veritabanı henüz hazır değil'));
-                return;
-            }
-
             const transaction = this.db.transaction(this.photoStore, 'readonly');
             const store = transaction.objectStore(this.photoStore);
             const request = store.getAll();
@@ -77,6 +71,10 @@ export class Storage {
 
     // Yeni Blob işleme metodları
     async getPhotoBlob(id) {
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
+        }
+
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction(this.photoStore, 'readonly');
             const store = transaction.objectStore(this.photoStore);
@@ -105,8 +103,8 @@ export class Storage {
         })));
     }
 
-    isNameExists(name) {
-        const photos = this.getPhotos();
+    async isNameExists(name) {
+        const photos = await this.getPhotos();
         const normalizedName = name.trim().toLowerCase();
         return photos.some(photo => photo.name.toLowerCase() === normalizedName);
     }
@@ -118,16 +116,17 @@ export class Storage {
         return `Photo_${date}_${time}`;
     }
 
-    addPhoto(photoData, name = '') {
-        const photos = this.getPhotos();
+    async addPhoto(photoData, name = '') {
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
+        }
 
+        const photos = await this.getPhotos();
         if (photos.length >= this.MAX_PHOTOS) {
             throw new Error('Maksimum fotoğraf sayısına ulaşıldı');
         }
 
-        // İsim boş ise otomatik isim oluştur
         const photoName = name.trim() || this.generateAutoName();
-
         const photo = {
             id: Date.now().toString(),
             name: photoName,
@@ -138,37 +137,63 @@ export class Storage {
             }
         };
 
-        photos.push(photo);
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.photoStore, 'readwrite');
+            const store = transaction.objectStore(this.photoStore);
+            const request = store.add(photo);
 
-        try {
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(photos));
-            return photo;
-        } catch (error) {
-            if (error.name === 'QuotaExceededError' || error.code === 22) {
-                throw new Error('Depolama alanı dolu. Lütfen bazı fotoğrafları siliniz.');
-            }
-            throw error;
+            request.onsuccess = () => resolve(photo);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async updatePhoto(id, updates) {
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
         }
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.photoStore, 'readwrite');
+            const store = transaction.objectStore(this.photoStore);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                const photo = { ...request.result, ...updates };
+                const updateRequest = store.put(photo);
+                updateRequest.onsuccess = () => resolve(photo);
+                updateRequest.onerror = () => reject(updateRequest.error);
+            };
+            request.onerror = () => reject(request.error);
+        });
     }
 
-    updatePhoto(id, updates) {
-        const photos = this.getPhotos();
-        const index = photos.findIndex(p => p.id === id);
-
-        if (index !== -1) {
-            photos[index] = { ...photos[index], ...updates };
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(photos));
-            return photos[index];
+    async deletePhoto(id) {
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
         }
-        return null;
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.photoStore, 'readwrite');
+            const store = transaction.objectStore(this.photoStore);
+            const request = store.delete(id);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
     }
 
-    deletePhoto(id) {
-        const photos = this.getPhotos().filter(p => p.id !== id);
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(photos));
-    }
+    async deleteAllPhotos() {
+        if (!this.db) {
+            throw new Error('Veritabanı henüz hazır değil');
+        }
 
-    deleteAllPhotos() {
-        localStorage.removeItem(this.STORAGE_KEY);
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.photoStore, 'readwrite');
+            const store = transaction.objectStore(this.photoStore);
+            const request = store.clear();
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
     }
 }
