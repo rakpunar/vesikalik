@@ -6,35 +6,27 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>v1.0.26</title>
-    <script>
-      const timestamp = new Date().getTime();
-    </script>
+    <title>Vesikalık v1.0.26 PWA</title>
+
+    <!-- PWA Meta Etiketleri -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+
+    <!-- Mevcut Scriptler -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         darkMode: "class",
       };
+      // Önbellek için timestamp
+      const timestamp = new Date().getTime();
     </script>
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="img/apple-touch-icon.png"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="img/favicon-32x32.png"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="img/favicon-16x16.png"
-    />
-    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Mevcut Stiller -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
@@ -65,7 +57,7 @@
         </button>
       </div>
 
-      <!-- Ana İçerik Alanı - Yüksekliği otomatik ayarlanacak -->
+      <!-- Ana İçerik Alanı -->
       <div class="flex-1 overflow-hidden">
         <!-- Kamera Bölümü -->
         <div id="camera-section" class="h-full flex flex-col">
@@ -93,127 +85,53 @@
           </div>
         </div>
 
-        <!-- Galeri Bölümü - Başlangıçta gizli -->
-        <div id="gallery-section" class="hidden h-full flex flex-col">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold">
-              Galeri (<span id="photo-count-title">0</span>)
-            </h2>
-            <div class="space-x-2">
-              <button
-                id="delete-all-btn"
-                class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Tümünü Sil
-              </button>
-              <button
-                id="download-btn"
-                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                İndir
-              </button>
-              <button
-                id="share-btn"
-                class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-              >
-                Paylaş
-              </button>
-            </div>
-          </div>
-
+        <!-- Galeri Bölümü -->
+        <div id="gallery-section" class="h-full hidden">
           <div
             id="gallery-grid"
-            class="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 overflow-y-auto pb-4"
+            class="grid grid-cols-2 md:grid-cols-4 gap-4"
           ></div>
-        </div>
-      </div>
-
-      <!-- Düzenleme Modalı -->
-      <div
-        id="edit-modal"
-        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-      >
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg w-11/12 max-w-2xl">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold">Fotoğraf Düzenle</h3>
-            <button id="close-modal" class="text-2xl">&times;</button>
-          </div>
-
-          <div class="space-y-4">
-            <!-- Kırpma Alanı -->
-            <div class="relative w-full" style="height: 400px">
-              <img
-                id="edit-image"
-                class="max-h-full w-full object-contain rounded"
-              />
-            </div>
-
-            <!-- Kontroller -->
-            <div class="flex gap-4 mb-4">
-              <button
-                id="rotate-left"
-                class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-              >
-                ↺ Sola Döndür
-              </button>
-              <button
-                id="rotate-right"
-                class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-              >
-                ↻ Sağa Döndür
-              </button>
-              <button
-                id="crop-apply"
-                class="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-              >
-                Kırp
-              </button>
-              <button
-                id="crop-reset"
-                class="px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-              >
-                Sıfırla
-              </button>
-            </div>
-
-            <!-- Parlaklık Ayarı -->
-            <div class="space-y-2">
-              <label>Parlaklık</label>
-              <input
-                type="range"
-                id="brightness"
-                min="0"
-                max="200"
-                value="100"
-              />
-            </div>
-
-            <!-- Alt Butonlar -->
-            <div class="flex justify-end space-x-2">
-              <button
-                id="rename-photo"
-                class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-              >
-                Yeniden Adlandır
-              </button>
-              <button
-                id="delete-photo"
-                class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Sil
-              </button>
-              <button
-                id="save-edits"
-                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Kaydet
-              </button>
-            </div>
+          <div class="mt-4 flex justify-end space-x-2">
+            <button
+              id="share-btn"
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Paylaş
+            </button>
+            <button
+              id="download-btn"
+              class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              İndir
+            </button>
+            <button
+              id="delete-all-btn"
+              class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            >
+              Tümünü Sil
+            </button>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- PWA Service Worker Kaydı -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("service-worker.js")
+            .then((registration) => {
+              console.log("Service Worker kaydedildi:", registration);
+            })
+            .catch((error) => {
+              console.error("Service Worker kaydı başarısız:", error);
+            });
+        });
+      }
+    </script>
+
+    <!-- Ana Uygulama -->
     <script type="module" src="js/main.js?v=${timestamp}"></script>
   </body>
 </html>
