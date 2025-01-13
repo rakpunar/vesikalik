@@ -3,6 +3,7 @@ import { Gallery } from './gallery.js';
 import { Storage } from './storage.js';
 import { Toast } from './toast.js';
 import { Dialog } from './dialog.js';
+import { DebugLogger } from './debug.js';
 
 class App {
     constructor() {
@@ -12,6 +13,8 @@ class App {
         this.dialog = new Dialog();
         this.toast = new Toast();
         this.activeTab = 'camera';
+        this.debugLogger = new DebugLogger()
+        console.log('App initialized with debug logger')
 
         this.setupEventListeners();
         this.initializeApp();
@@ -46,7 +49,7 @@ class App {
 
             // Sonra dialog göster
             let name = await this.dialog.prompt('Fotoğraf için isim girin (Boş bırakırsanız otomatik isimlendirilecek):', '', 'Fotoğraf İsmi');
-            
+
             // İsim girildi ve mevcut bir isimle çakışıyor
             while (name !== null && name.trim() !== '' && this.storage.isNameExists(name.trim())) {
                 this.toast.show('Bu isimde bir fotoğraf zaten var!', 'error');
