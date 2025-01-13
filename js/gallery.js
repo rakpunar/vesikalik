@@ -88,7 +88,7 @@ export class Gallery {
         this.modal.classList.remove('hidden');
 
         const editImage = document.getElementById('edit-image');
-        
+
         // Önceki cropper varsa temizle
         if (this.cropper) {
             this.cropper.destroy();
@@ -107,7 +107,7 @@ export class Gallery {
         editImage.onload = () => {
             // Parlaklığı uygula
             editImage.style.filter = `brightness(${savedBrightness}%)`;
-            
+
             this.initializeCropper(editImage);
             this.setupEditControls();
         };
@@ -151,20 +151,20 @@ export class Gallery {
         // Kırpma butonları
         document.getElementById('crop-apply').onclick = () => {
             if (!this.cropper) return;
-            
+
             const canvas = this.cropper.getCroppedCanvas();
             if (canvas) {
                 const croppedImage = canvas.toDataURL('image/jpeg', 0.95);
                 const editImage = document.getElementById('edit-image');
                 const currentBrightness = document.getElementById('brightness').value;
-                
+
                 // Mevcut cropper'ı temizle
                 this.cropper.destroy();
                 this.cropper = null;
-                
+
                 // Yeni görüntüyü göster
                 editImage.src = croppedImage;
-                
+
                 // Görüntü yüklendiğinde yeni cropper oluştur
                 editImage.onload = () => {
                     editImage.style.filter = `brightness(${currentBrightness}%)`;
@@ -187,7 +187,7 @@ export class Gallery {
 
             const editImage = document.getElementById('edit-image');
             const originalBrightness = this.originalPhoto.edits?.brightness || 100;
-            
+
             // Cropper'ı temizle
             if (this.cropper) {
                 this.cropper.destroy();
@@ -196,11 +196,11 @@ export class Gallery {
 
             // Orijinal görüntüyü geri yükle
             editImage.src = this.originalPhoto.data;
-            
+
             // Parlaklığı orijinal değerine sıfırla
             const brightnessSlider = document.getElementById('brightness');
             brightnessSlider.value = originalBrightness;
-            
+
             // Görüntü yüklendiğinde yeni cropper oluştur
             editImage.onload = () => {
                 editImage.style.filter = `brightness(${originalBrightness}%)`;
@@ -224,31 +224,31 @@ export class Gallery {
             this.cropper.destroy();
             this.cropper = null;
         }
-        
+
         this.currentPhotoId = null;
         this.originalPhoto = null;
         this.tempChanges = {};
-        
+
         const editImage = document.getElementById('edit-image');
         editImage.removeAttribute('src');
         editImage.style.filter = '';
-        
+
         this.modal.classList.add('hidden');
     }
 
     updatePreview() {
         const editImage = document.getElementById('edit-image');
         const brightness = document.getElementById('brightness').value;
-        
+
         // Ana görüntüye parlaklık uygula
         editImage.style.filter = `brightness(${brightness}%)`;
-        
+
         // Cropper canvas'ına parlaklık uygula
         if (this.cropper) {
             const cropperCanvas = document.querySelector('.cropper-view-box');
             const cropperImage = document.querySelector('.cropper-canvas');
             const cropperContainer = document.querySelector('.cropper-container');
-            
+
             if (cropperCanvas) cropperCanvas.style.filter = `brightness(${brightness}%)`;
             if (cropperImage) cropperImage.style.filter = `brightness(${brightness}%)`;
             if (cropperContainer) cropperContainer.style.filter = `brightness(${brightness}%)`;
@@ -329,62 +329,45 @@ export class Gallery {
     }
 
     async shareAll() {
-        const photos = this.storage.getPhotos();
-        if (photos.length === 0) {
-            this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
-            return;
-        }
-
         try {
+            console.log('Share API mevcut:', !!navigator.share);
+            console.log('CanShare API mevcut:', !!navigator.canShare);
+
+            const photos = this.storage.getPhotos();
+            if (photos.length === 0) {
+                this.toast.show('Paylaşılacak fotoğraf bulunamadı.', 'error');
+                return;
+            }
+
             const zip = new JSZip();
             photos.forEach(photo => {
+                // Base64'ü kontrol et
+                console.log('Photo data length:', photo.data.length);
                 const base64Data = photo.data.split(',')[1];
                 zip.file(`${photo.name}.jpg`, base64Data, { base64: true });
             });
 
             const zipBlob = await zip.generateAsync({ type: 'blob' });
+            console.log('Zip blob size:', zipBlob.size);
+
             const file = new File([zipBlob], 'fotograflar.zip', {
                 type: 'application/zip',
                 lastModified: Date.now()
             });
+            console.log('File created:', file.name, file.type, file.size);
 
-            // Paylaşım özelliğini kontrol et
             const shareData = { files: [file], title: 'Fotoğraflar' };
-            
-            if (!navigator.share || !navigator.canShare || !navigator.canShare(shareData)) {
-                await this.dialog.alert(
-                    'Bu cihazda paylaşım özelliği desteklenmiyor veya dosya paylaşımı için izinler yetersiz.',
-                    'Paylaşım Hatası'
-                );
-                return;
+            console.log('Share data:', shareData);
+
+            // Paylaşım özelliğini detaylı kontrol et
+            if (navigator.canShare) {
+                console.log('Can share check:', navigator.canShare(shareData));
             }
 
             await navigator.share(shareData);
-            this.toast.show('Paylaşım başarılı', 'success');
         } catch (error) {
-            if (error.name === 'AbortError') {
-                return; // Kullanıcı paylaşımı iptal etti
-            }
-
-            let errorMessage = 'Bilinmeyen bir hata oluştu.';
-            let errorTitle = 'Paylaşım Hatası';
-            let errorDetails = `Hata Türü: ${error.name}\nHata Detayı: ${error.message}`;
-            
-            // Hata türüne göre özel mesajlar
-            if (error.name === 'NotAllowedError') {
-                errorMessage = 'Paylaşım için gerekli izinler reddedildi.';
-            } else if (error.name === 'DataError') {
-                errorMessage = 'Paylaşılacak dosya çok büyük veya desteklenmiyor.';
-            } else if (error.name === 'NotFoundError') {
-                errorMessage = 'Paylaşım servisi bulunamadı.';
-            } else if (error.name === 'TypeError') {
-                errorMessage = 'Dosya paylaşımı bu cihazda desteklenmiyor.';
-            }
-
-            await this.dialog.alert(
-                `${errorMessage}\n\nTeknik Detay:\n${errorDetails}`, 
-                errorTitle
-            );
+            console.error('Share error:', error);
+            // ... hata işleme
         }
     }
 
