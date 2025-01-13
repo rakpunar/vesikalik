@@ -47,13 +47,20 @@ export class Gallery {
             const photos = await this.storage.getPhotos();
             const maxPhotos = this.storage.MAX_PHOTOS;
 
-            // Fotoğraf sayısını güncelle
             this.photoCount.textContent = `${photos.length}/${maxPhotos}`;
 
-            // Galeriyi render et
-            this.container.innerHTML = photos.map(photo => this.createPhotoElement(photo)).join('');
+            // Fragment kullanarak performansı artır
+            const fragment = document.createDocumentFragment();
+            photos.forEach(photo => {
+                const element = document.createElement('div');
+                element.innerHTML = this.createPhotoElement(photo);
+                fragment.appendChild(element.firstChild);
+            });
 
-            // Fotoğraf tıklama olaylarını ekle
+            this.container.innerHTML = '';
+            this.container.appendChild(fragment);
+
+            // Event listener'ları ekle
             this.container.querySelectorAll('.photo-item').forEach(item => {
                 item.addEventListener('click', () => this.showPhotoActions(item.dataset.id));
             });
@@ -66,8 +73,13 @@ export class Gallery {
     createPhotoElement(photo) {
         return `
             <div class="photo-item" data-id="${photo.id}">
-                <img src="${photo.data}" alt="${photo.name}" loading="lazy">
-                <div class="photo-info">
+                <img 
+                    src="${photo.data}" 
+                    alt="${photo.name}" 
+                    loading="lazy"
+                    class="w-full h-full object-cover"
+                />
+                <div class="photo-info absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 text-sm">
                     <span>${photo.name}</span>
                 </div>
             </div>
