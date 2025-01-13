@@ -368,8 +368,8 @@ export class Gallery {
                 type: zipBlob.type
             });
 
-            const file = new File([zipBlob], 'fotograflar.zip', {
-                type: 'application/octet-stream',
+            const file = new File([zipBlob], 'fotograflar.vip', {
+                type: 'application/zip',
                 lastModified: Date.now()
             });
             console.log('File object created:', {
