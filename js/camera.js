@@ -4,6 +4,13 @@ export class Camera {
         this.video = document.getElementById('camera-preview');
         this.stream = null;
         this.isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        // PWA için ekran oryantasyon değişikliğini dinle
+        if (screen.orientation) {
+            screen.orientation.addEventListener('change', () => {
+                this.handleOrientationChange();
+            });
+        }
     }
 
     async init() {
@@ -19,6 +26,14 @@ export class Camera {
                 }
             };
 
+            // PWA için izin kontrolü
+            if ('permissions' in navigator) {
+                const permission = await navigator.permissions.query({ name: 'camera' });
+                if (permission.state === 'denied') {
+                    throw new Error('Kamera izni reddedildi');
+                }
+            }
+
             // Mevcut stream varsa kapat
             if (this.stream) {
                 this.stream.getTracks().forEach(track => track.stop());
@@ -31,24 +46,28 @@ export class Camera {
             // En iyi kamera ayarlarını seç
             const track = this.stream.getVideoTracks()[0];
             const capabilities = track.getCapabilities();
+            const settings = track.getSettings();
 
-            if (capabilities.torch) {
-                await track.applyConstraints({
-                    advanced: [{ torch: false }]
-                });
-            }
-
-            // Zoom seviyesini 1x olarak ayarla
-            if (capabilities.zoom) {
-                await track.applyConstraints({
-                    advanced: [{ zoom: 1 }]
-                });
+            // PWA için ekran kilidi
+            if ('wakeLock' in navigator) {
+                try {
+                    await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.log('Ekran kilidi aktifleştirilemedi:', err);
+                }
             }
 
             return true;
         } catch (error) {
             console.error('Kamera başlatma hatası:', error);
-            throw new Error('Kamera başlatılamadı: ' + error.message);
+            return false;
+        }
+    }
+
+    handleOrientationChange() {
+        // Oryantasyon değiştiğinde kamerayı yeniden başlat
+        if (this.stream) {
+            this.init();
         }
     }
 
@@ -92,8 +111,13 @@ export class Camera {
                         0, 0, cropWidth, cropHeight
                     );
 
+                    // PWA için dokunma geri bildirimi
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([50]);
+                    }
+
                     resolve(canvas.toDataURL('image/jpeg', 0.95));
-                }, 500); // Flaş animasyonu için 300ms bekle
+                }, 300);
             });
         } catch (error) {
             console.error('Fotoğraf çekme hatası:', error);
