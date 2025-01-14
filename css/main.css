@@ -1,0 +1,203 @@
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #374151;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4B5563;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6B7280;
+}
+
+/* Theme Transitions */
+.theme-transition,
+[data-theme] {
+    transition: background-color 0.3s ease,
+        color 0.3s ease,
+        border-color 0.3s ease,
+        fill 0.3s ease,
+        stroke 0.3s ease;
+}
+
+/* Camera Guidelines */
+.guideline {
+    position: absolute;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+}
+
+.guideline::before,
+.guideline::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 50;
+}
+
+.toast {
+    transform: translateX(100%);
+    animation: slideIn 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+    to {
+        transform: translateX(0);
+    }
+}
+
+/* Loading Spinner */
+.spinner {
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #3B82F6;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Theme Styles */
+[data-theme="dark"] {
+    background-color: #111827;
+    color: #F3F4F6;
+}
+
+[data-theme="dark"] .bg-gray-800 {
+    background-color: #1F2937;
+}
+
+[data-theme="dark"] .bg-gray-700 {
+    background-color: #374151;
+}
+
+[data-theme="dark"] .hover\:bg-gray-600:hover {
+    background-color: #4B5563;
+}
+
+[data-theme="dark"] .bg-blue-500 {
+    background-color: #3B82F6;
+}
+
+[data-theme="light"] {
+    background-color: #FFFFFF;
+    color: #111827;
+}
+
+[data-theme="light"] .bg-gray-800 {
+    background-color: #F3F4F6;
+}
+
+[data-theme="light"] .bg-gray-700 {
+    background-color: #E5E7EB;
+}
+
+[data-theme="light"] .hover\:bg-gray-600:hover {
+    background-color: #D1D5DB;
+}
+
+[data-theme="light"] .text-gray-100 {
+    color: #111827;
+}
+
+[data-theme="light"] .bg-blue-500 {
+    background-color: #3B82F6;
+}
+
+/* Ensure transitions are smooth */
+body,
+.tab-btn,
+.view-container,
+#themeToggle,
+.dark-icon,
+.light-icon {
+    transition: all 0.3s ease-in-out;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Cropper.js Styles */
+.cropper-container {
+    background-color: #1F2937;
+}
+
+.cropper-view-box,
+.cropper-face {
+    border-radius: 0;
+}
+
+.cropper-line,
+.cropper-point {
+    background-color: #3B82F6;
+}
+
+.cropper-view-box {
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Theme Toggle Button Styles - main.css dosyasına ekleyin */
+#themeToggle {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+#themeToggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+#themeToggle:active {
+    transform: scale(0.9);
+}
+
+[data-theme="dark"] #themeToggle {
+    background-color: rgba(31, 41, 55, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] #themeToggle:hover {
+    border-color: rgba(147, 197, 253, 0.5);
+}
+
+[data-theme="light"] #themeToggle {
+    background-color: rgba(243, 244, 246, 0.8);
+    border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] #themeToggle:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+/* Icon animations */
+#themeToggle svg {
+    transition: transform 0.5s ease;
+}
+
+#themeToggle:hover svg {
+    transform: rotate(360deg);
+}
