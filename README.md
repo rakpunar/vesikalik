@@ -46,18 +46,6 @@ Modern web teknolojileri ile geliştirilmiş, Progressive Web App (PWA) özellik
 5. Galeriden fotoğraflarınızı yönetin
 6. İsterseniz ZIP olarak indirin veya paylaşın
 
-## 📁 Proje Yapısı 
-pwa-example/
-├── index.html # Ana HTML dosyası
-├── manifest.json # PWA manifest
-├── service-worker.js # Service worker
-├── offline.html # Çevrimdışı sayfa
-├── robots.txt # SEO yönergeleri
-├── sitemap.xml # Site haritası
-├── styles.css # Stil dosyası
-├── img/ # Görseller
-└── js/ # JavaScript modülleri
-
 ## 🔒 Güvenlik
 
 - HTTPS üzerinden çalışır
