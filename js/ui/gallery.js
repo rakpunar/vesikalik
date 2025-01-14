@@ -250,7 +250,7 @@ export class GalleryView {
     }
 
     #setupPhotoEventListeners(div, photo) {
-        // Elementleri seç
+        // Mevcut listener'lar...
         const card = div.querySelector('.photo-card');
         const selectionOverlay = div.querySelector('.selection-overlay');
         const editBtn = div.querySelector('.edit-btn');
@@ -260,7 +260,6 @@ export class GalleryView {
 
         // Kart tıklama - seçim için
         const handleCardClick = (e) => {
-            // Eğer tıklanan element bir buton ya da butonun içindeki bir element ise işlemi durdur
             if (e.target.closest('.action-btn')) {
                 e.stopPropagation();
                 return;
@@ -286,7 +285,6 @@ export class GalleryView {
             this.#setButtonLoading(btn, true);
             try {
                 await PhotoService.downloadMultiple([photo]);
-                Toast.success('Fotoğraf indirildi');
             } catch (error) {
                 Toast.error('Fotoğraf indirilemedi');
             } finally {
@@ -296,20 +294,7 @@ export class GalleryView {
 
         const handleShare = async (e) => {
             e.stopPropagation();
-            const btn = e.currentTarget;
-            this.#setButtonLoading(btn, true);
-            try {
-                await PhotoService.shareMultiple([photo]);
-                Toast.success('Fotoğraf paylaşıldı');
-            } catch (error) {
-                if (error.message === 'SHARE_NOT_SUPPORTED') {
-                    Toast.error('Paylaşım özelliği bu cihazda desteklenmiyor');
-                } else {
-                    Toast.error('Fotoğraf paylaşılamadı');
-                }
-            } finally {
-                this.#setButtonLoading(btn, false);
-            }
+            await this.#handleSinglePhotoShare(photo, e.currentTarget);
         };
 
         const handleDelete = async (e) => {
@@ -319,22 +304,10 @@ export class GalleryView {
 
         // Event listener'ları ekle
         card.addEventListener('click', handleCardClick);
-
-        if (editBtn) {
-            editBtn.addEventListener('click', handleEdit);
-        }
-
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', handleDownload);
-        }
-
-        if (shareBtn) {
-            shareBtn.addEventListener('click', handleShare);
-        }
-
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', handleDelete);
-        }
+        editBtn?.addEventListener('click', handleEdit);
+        downloadBtn?.addEventListener('click', handleDownload);
+        shareBtn?.addEventListener('click', handleShare);
+        deleteBtn?.addEventListener('click', handleDelete);
 
         // Cleanup için event listener'ları sakla
         div._cleanup = () => {
@@ -345,6 +318,7 @@ export class GalleryView {
             deleteBtn?.removeEventListener('click', handleDelete);
         };
     }
+
     #togglePhotoSelection(photoId, overlay) {
         if (this.#selectedPhotos.has(photoId)) {
             this.#selectedPhotos.delete(photoId);
@@ -442,8 +416,15 @@ export class GalleryView {
     }
 
     async #handleShare() {
+        const shareBtn = this.#container.querySelector('.share-btn');
+        this.#setButtonLoading(shareBtn, true);
+
         try {
             if (this.#selectedPhotos.size === 0) {
+                const allPhotos = await PhotoService.getAll();
+                if (allPhotos.length === 0) {
+                    throw new Error('NO_PHOTOS');
+                }
                 await PhotoService.shareAll();
             } else {
                 const selectedPhotos = await Promise.all(
@@ -451,15 +432,33 @@ export class GalleryView {
                 );
                 await PhotoService.shareMultiple(selectedPhotos);
             }
-            Toast.success(this.#selectedPhotos.size > 0 ? 'Seçili fotoğraflar paylaşıldı' : 'Tüm fotoğraflar paylaşıldı');
         } catch (error) {
             if (error.message === 'SHARE_NOT_SUPPORTED') {
-                Toast.error('Paylaşım özelliği bu cihazda desteklenmiyor');
+                Toast.error('Bu cihazda paylaşım özelliği desteklenmiyor. Lütfen indirme seçeneğini kullanın.');
             } else if (error.message === 'NO_PHOTOS') {
                 Toast.warning('Paylaşılacak fotoğraf bulunamadı');
-            } else {
+            } else if (error.name !== 'AbortError') { // Paylaşım iptalinde hata gösterme
                 Toast.error('Fotoğraflar paylaşılamadı');
+                console.error('Share error:', error);
             }
+        } finally {
+            this.#setButtonLoading(shareBtn, false);
+        }
+    }
+
+    async #handleSinglePhotoShare(photo, button) {
+        this.#setButtonLoading(button, true);
+        try {
+            await PhotoService.shareMultiple([photo]);
+        } catch (error) {
+            if (error.message === 'SHARE_NOT_SUPPORTED') {
+                Toast.error('Bu cihazda paylaşım özelliği desteklenmiyor. Lütfen indirme seçeneğini kullanın.');
+            } else if (error.name !== 'AbortError') {
+                Toast.error('Fotoğraf paylaşılamadı');
+                console.error('Share error:', error);
+            }
+        } finally {
+            this.#setButtonLoading(button, false);
         }
     }
 
