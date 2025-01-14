@@ -203,12 +203,26 @@ window.app = app;
 
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('SW registered:', registration);
-            })
-            .catch(error => console.error('SW registration failed:', error));
+    window.addEventListener('load', async () => {
+        try {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+                scope: './'
+            });
+            console.log('SW registered:', registration);
+
+            // PWA yükleme önerisi için deferredPrompt olayını dinle
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+
+                // İsterseniz burada bir "Uygulamayı Yükle" butonu gösterebilirsiniz
+                // Örnek:
+                showInstallButton();
+            });
+        } catch (error) {
+            console.error('SW registration failed:', error);
+        }
     });
 }
 
