@@ -82,6 +82,16 @@ export class PhotoService {
         }
     }
 
+    static async get(id) {
+        try {
+            return await Storage.get(id);
+        } catch (error) {
+            console.error('Failed to get photo:', error);
+            throw error;
+        }
+    }
+
+    // İndirme işlemleri
     static async downloadAll() {
         try {
             const photos = await this.getAll();
@@ -90,7 +100,7 @@ export class PhotoService {
             }
 
             if (photos.length === 1) {
-                this.#downloadSingle(photos[0]);
+                await this.#downloadSingle(photos[0]);
             } else {
                 await this.#downloadZip(photos);
             }
@@ -98,24 +108,6 @@ export class PhotoService {
             EventBus.emit('error', {
                 type: 'photo',
                 message: 'Fotoğraflar indirilemedi',
-                error
-            });
-            throw error;
-        }
-    }
-
-    static async shareAll() {
-        try {
-            const photos = await this.getAll();
-            if (photos.length === 0) {
-                throw new Error('NO_PHOTOS');
-            }
-
-            await this.#shareAsZip(photos);
-        } catch (error) {
-            EventBus.emit('error', {
-                type: 'photo',
-                message: 'Fotoğraflar paylaşılamadı',
                 error
             });
             throw error;
@@ -135,27 +127,22 @@ export class PhotoService {
 
     static async #downloadZip(photos) {
         const zip = new JSZip();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-        photos.forEach(photo => {
+        photos.forEach((photo, index) => {
             const imageData = photo.dataUrl.split(',')[1];
-            zip.file(`${photo.name}.jpg`, imageData, { base64: true });
+            const fileName = photo.name ? `${photo.name}.jpg` : `vesikalik_${index + 1}.jpg`;
+            zip.file(fileName, imageData, { base64: true });
         });
 
         const content = await zip.generateAsync({ type: 'blob' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(content);
-        link.download = 'vesikalik_fotograflar.zip';
+        link.download = `vesikalik_fotograflar_${timestamp}.zip`;
         link.click();
+        URL.revokeObjectURL(link.href);
     }
 
-    static async get(id) {
-        try {
-            return await Storage.get(id);
-        } catch (error) {
-            console.error('Failed to get photo:', error);
-            throw error;
-        }
-    }
     static async downloadMultiple(photos) {
         try {
             if (photos.length === 0) {
@@ -163,73 +150,104 @@ export class PhotoService {
             }
 
             if (photos.length === 1) {
-                return this.#downloadSingle(photos[0]); // private metod olduğu için # eklendi
+                return this.#downloadSingle(photos[0]);
             }
 
-            const zip = new JSZip();
-            photos.forEach(photo => {
-                const imageData = photo.dataUrl.split(',')[1];
-                zip.file(`${photo.name}.jpg`, imageData, { base64: true });
-            });
-
-            const content = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = 'vesikalik_fotograflar.zip';
-            link.click();
-            URL.revokeObjectURL(link.href); // Memory leak'i önlemek için URL'i temizle
+            await this.#downloadZip(photos);
         } catch (error) {
+            throw error;
+        }
+    }
+
+    // Paylaşım işlemleri
+    static async shareAll() {
+        try {
+            const photos = await this.getAll();
+            if (photos.length === 0) {
+                throw new Error('NO_PHOTOS');
+            }
+
+            await this.shareMultiple(photos);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                EventBus.emit('error', {
+                    type: 'photo',
+                    message: 'Fotoğraflar paylaşılamadı',
+                    error
+                });
+            }
             throw error;
         }
     }
 
     static async shareMultiple(photos) {
         try {
+            if (!navigator.share || !navigator.canShare) {
+                throw new Error('SHARE_NOT_SUPPORTED');
+            }
+
             if (photos.length === 0) {
                 throw new Error('NO_PHOTOS_SELECTED');
             }
 
-            await this.#shareAsZip(photos);
+            // Tek fotoğraf paylaşımı için özel durum
+            if (photos.length === 1) {
+                const photo = photos[0];
+                const photoBlob = await fetch(photo.dataUrl).then(r => r.blob());
+                const photoFile = new File([photoBlob], `${photo.name}.jpg`, {
+                    type: 'image/jpeg'
+                });
+
+                if (!navigator.canShare({ files: [photoFile] })) {
+                    throw new Error('SHARE_NOT_SUPPORTED');
+                }
+
+                await navigator.share({
+                    files: [photoFile],
+                    title: 'Vesikalık Fotoğraf',
+                    text: photo.name
+                });
+
+                return;
+            }
+
+            // Birden fazla fotoğraf için ZIP oluştur
+            const zip = new JSZip();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+            photos.forEach((photo, index) => {
+                const imageData = photo.dataUrl.split(',')[1];
+                const fileName = photo.name ? `${photo.name}.jpg` : `vesikalik_${index + 1}.jpg`;
+                zip.file(fileName, imageData, { base64: true });
+            });
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const zipFile = new File([zipBlob], `vesikalik_fotograflar_${timestamp}.zip`, {
+                type: 'application/zip'
+            });
+
+            if (!navigator.canShare({ files: [zipFile] })) {
+                throw new Error('SHARE_NOT_SUPPORTED');
+            }
+
+            try {
+                await navigator.share({
+                    files: [zipFile],
+                    title: 'Vesikalık Fotoğraflar',
+                    text: `${photos.length} adet vesikalık fotoğraf`
+                });
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
+                throw error;
+            } finally {
+                // Belleği temizle
+                URL.revokeObjectURL(URL.createObjectURL(zipBlob));
+            }
         } catch (error) {
+            console.error('Share error:', error);
             throw error;
         }
     }
-
-    static async #shareAsZip(photos) {
-        if (!navigator.share) {
-            throw new Error('SHARE_NOT_SUPPORTED');
-        }
-
-        // ZIP dosyasını oluştur
-        const zip = new JSZip();
-
-        // Fotoğrafları ZIP'e ekle
-        photos.forEach(photo => {
-            const imageData = photo.dataUrl.split(',')[1];
-            zip.file(`${photo.name}.jpg`, imageData, { base64: true });
-        });
-
-        // ZIP'i blob formatına dönüştür
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-
-        // Paylaşılabilir dosya oluştur
-        const zipFile = new File([zipBlob], 'vesikalik_fotograflar.zip', {
-            type: 'application/zip',
-            lastModified: new Date().getTime()
-        });
-
-        // Web Share API ile paylaş
-        try {
-            await navigator.share({
-                files: [zipFile],
-                title: 'Vesikalık Fotoğraflar',
-                text: photos.length > 1
-                    ? `${photos.length} adet vesikalık fotoğraf paylaşıyorum`
-                    : 'Vesikalık fotoğraf paylaşıyorum'
-            });
-        } finally {
-            // Belleği temizle
-            URL.revokeObjectURL(zipBlob);
-        }
-    }
-} 
+}
